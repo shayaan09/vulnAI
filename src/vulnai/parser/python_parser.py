@@ -10,21 +10,45 @@ def fileToCode(fileName: str):
 
 class treeWalk(ast.NodeVisitor):
     def __init__(self):
-        self.assignmentNames = []
+        self.assignments = []
     
 
     #Will go through assignment 'styles' that aren't leaf assignments like simple assignment or a subscript assignment
     #It'll then recursively keep traversing into their subtrees until it reaches the leaves.
     def targetExtractor(self, node):
         if(isinstance(node, ast.Name)):
-            self.assignmentNames.append(node.id)
+            self.assignment = {
+                "nodeType": "Name",
+                "target": node.id
+            }
+            self.assignments.append(self.assignment)
+            return
 
-        elif(isinstance(node, ast.Tuple)):
+        elif(isinstance(node, ast.Tuple) or isinstance(node, ast.List)):
             elemList = node.elts
             for elem in elemList:
                 self.targetExtractor(elem)
+
+        elif(isinstance(node, ast.Subscript)):
+            self.assignment = {
+                "nodeType": "Subscript",
+                "target": node.value,
+                "slice": node.slice
+            }
+            self.assignments.append(self.assignment)
+
+
+        elif(isinstance(node, ast.Attribute)):
+            self.assignment = {
+                "nodeType": "Attribute",
+                "target": node.value,
+                "attribute": node.attr
+            }
+            self.assignments.append(self.assignment)
+
             
-            
+        elif(isinstance(node, ast.Starred)):
+            self.targetExtractor(node.value)
 
     def visit_Assign(self, node):
         left = node.targets #This is a list of nodes
@@ -33,7 +57,7 @@ class treeWalk(ast.NodeVisitor):
 
         for target in left:
             self.targetExtractor(target)
-        
-        self.generic_visit(node)
 
-        
+
+        self.generic_visit(node)
+            
