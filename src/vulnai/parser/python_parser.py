@@ -11,6 +11,8 @@ def fileToCode(fileName: str):
 class treeWalk(ast.NodeVisitor):
     def __init__(self):
         self.assignments = []
+        self.functions = []
+        self.classes = []
     
 
     #Will go through assignment 'styles' that aren't leaf assignments like simple assignment or a subscript assignment
@@ -62,5 +64,103 @@ class treeWalk(ast.NodeVisitor):
 
 
         self.generic_visit(node)
-            
-"Further refined targetExtractor to assign the 'right' side of a var assignment. This will allow for storing the value insie the dict. targetExtractor() now expects 2 parameters. A node's value obj and the target obj are both on the same hierarchical level, so we can safely pass right as a param, regardless of how deep the recursion needs to go to extract the target names. This is not complete, and will break for tuples, augmented assignments, annotated assignments and chained assignments."
+        
+    def visit_FunctionDef(self, node):
+        funcName = node.name
+        funcLine = node.lineno
+        argList = []
+
+        #Args that have lists
+        args = node.args.args
+        posonlyargs = node.args.posonlyargs
+        kwonlyargs = node.args.kwonlyargs
+        
+        #No-list args
+        vararg = node.args.vararg
+        kwarg = node.args.kwarg
+
+
+        for arg in args:
+            argList.append({
+                "name": arg.arg,
+                "argType": "regular"
+            })
+
+        for arg in posonlyargs:
+            argList.append({
+                "name": arg.arg,
+                "argType": "posonlyarg"
+            })
+        
+        for arg in kwonlyargs:
+            argList.append({
+                "name": arg.arg,
+                "argType": "kwonlyarg"
+            })
+        
+
+        
+        if vararg:
+            argList.append({
+                "name": vararg.arg,
+                "argType": "vararg"
+            })
+        
+        if kwarg:
+            argList.append({
+                "name": kwarg.arg,
+                "argType": "kwarg"
+            })
+        
+        
+
+        self.functions.append({
+            "name": funcName,
+            "arguments": argList,
+            "line": funcLine
+        })
+        
+        self.generic_visit(node)
+
+
+    def visit_ClassDef(self, node):
+        className = node.name
+        baseList = []
+        keywordList = []
+        bodyNodeList = []
+        classLine = node.lineno
+
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                baseList.append({
+                    "value": base.id,
+                    "attribute": None
+                })
+            elif(isinstance(base, ast.Attribute)):
+                baseList.append({
+                    "value": base.value, #this will only give the node's memory address
+                    "attribute": base.attr
+                })
+        
+        for keyword in node.keywords:
+            keywordList.append({
+                "arg": keyword.arg,
+                "value": keyword.value
+            })
+        
+        for bodyNode in node.body:
+            bodyNodeList.append({
+                "nodeType": bodyNode
+            })
+        
+        self.classes.append({
+            "className": className,
+            "bases": baseList,
+            "keywords": keywordList,
+            "bodyNodes": bodyNodeList,
+            "line": classLine
+        })
+
+        
+        self.generic_visit(node)

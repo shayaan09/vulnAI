@@ -14,4 +14,7 @@ node3 = ast.parse('l[1:2, 3] = y')
 #print(ast.dump(node3,  indent=4))
 
 node4 = ast.parse('snake.colour = w')
-print(ast.dump(node4, indent=4))
+#print(ast.dump(node4, indent=4))
+
+node5 = ast.parse('def func(a,b): return 0')
+print(ast.dump(node5, indent =4))
