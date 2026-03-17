@@ -13,6 +13,7 @@ class treeWalk(ast.NodeVisitor):
         self.assignments = []
         self.functions = []
         self.classes = []
+        self.imports = []
     
 
     #Will go through assignment 'styles' that aren't leaf assignments like simple assignment or a subscript assignment
@@ -99,7 +100,7 @@ class treeWalk(ast.NodeVisitor):
             })
         
 
-        
+        #no for loops because these are single nodes. a function can only have one *args and one **kwargs
         if vararg:
             argList.append({
                 "name": vararg.arg,
@@ -164,3 +165,29 @@ class treeWalk(ast.NodeVisitor):
 
         
         self.generic_visit(node)
+
+    def visit_Import(self, node):
+
+        for name in node.names:
+            self.imports.append({
+                "name": name.name,
+                "asname": name.asname,
+                "from": None,
+                "level": 0
+            })
+        self.generic_visit(node)
+
+    
+    def visit_ImportFrom(self, node):
+
+        for name in node.names:
+            self.imports.append({
+                "name": name.name,
+                "asname": name.asname,
+                "from": node.module,
+                "level": node.level #for relative imports
+            })
+        self.generic_visit(node)
+
+    
+
