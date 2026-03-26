@@ -17,4 +17,11 @@ node4 = ast.parse('snake.colour = w')
 #print(ast.dump(node4, indent=4))
 
 node5 = ast.parse('def func(a,b): return 0')
-print(ast.dump(node5, indent =4))
+#print(ast.dump(node5, indent =4))
+
+
+# def randoFuncToVisualizeCFG():
+#     a = 5
+#     b = 10
+#     return a + b
+

@@ -1,5 +1,5 @@
 import ast
-
+from vulnai.analysis.builder import Builder
 #Will go into the file we grab from the cli.py and reads the contents, then converts them into code and returns the AST for that code
 def fileToCode(fileName: str):
     with open(fileName, 'r', encoding="utf-8") as fileObj:
@@ -121,6 +121,8 @@ class treeWalk(ast.NodeVisitor):
             "line": funcLine
         })
         
+        builder = Builder()
+        cfg = builder.cfgBuild(node.body)
         self.generic_visit(node)
 
 
