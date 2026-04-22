@@ -122,7 +122,7 @@ class treeWalk(ast.NodeVisitor):
         })
         
         builder = Builder()
-        cfg = builder.cfgBuild(node.body)
+        builder.cfgBuild(node.body)
         self.generic_visit(node)
 
 

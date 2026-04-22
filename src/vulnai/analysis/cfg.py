@@ -1,4 +1,3 @@
-import ast
 from dataclasses import dataclass, field
 from vulnai.analysis.bb import BasicBlock as bb
 

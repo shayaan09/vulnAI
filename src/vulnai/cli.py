@@ -1,6 +1,7 @@
 import argparse
 import ast
 from vulnai.parser.python_parser import fileToCode
+from vulnai.parser.python_parser import treeWalk
 
 def main():
     parser= argparse.ArgumentParser(prog="vulnai")
@@ -12,6 +13,8 @@ def main():
     if args.cmd == "scan" or args.cmd == 's':
         print("Scanning: " + args.target)
         codeTree = fileToCode(args.target)
+        walker = treeWalk()
+        walker.visit(codeTree)
         print(ast.dump(codeTree , indent = 4))
     elif args.cmd is None:
         parser.print_help()
