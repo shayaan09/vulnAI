@@ -2,10 +2,13 @@ from vulnai.analysis.bb import BasicBlock as bb
 from vulnai.analysis.definition import Definition as defi
 import ast
 from vulnai.analysis.cfg import ControlFlowGraph as cfg
+from collections import defaultdict
 
 class ReachingDefinitionAnalyzer:
     def __init__(self):
         self.definitionID = 1
+        self.allDefs = defaultdict(set)
+
 
     #handles the 'local' part of set creating (the GEN and KILL sets within each block)
     #walk the block, and fill in the Gen and KILL sets as you iterate through the statements
@@ -20,31 +23,25 @@ class ReachingDefinitionAnalyzer:
 
                 varName = target.id
 
+                prevDefs = self.allDefs[varName].copy() #gives ALL previous defs of the variable so we can prep for deletion
                 self.definitionID += 1
                 newDef = defi(self.definitionID, varName, stmt)
 
-                oldDef = None
+                oldDefs = set()
+
+                #for any defs of a var created in the working block
                 for defin in block.GEN:
                     if defin.var == varName:
-                        oldDef = defin
-                        break
+                        oldDefs.add(defin)
 
-                if oldDef is not None:
-                    block.GEN.remove(oldDef)
-                    block.KILL.add(oldDef)
+
+                block.GEN -= oldDefs
+                block.KILL |= oldDefs
+
+                block.KILL |= prevDefs
 
                 block.GEN.add(newDef)
-
-                change = True
-                while change:
-                    change = False
-                    for block in cfg.blocks:
-                        for prevBlock in block.prevBlocks:
-                            oldIN = block.IN.copy()
-                            oldOUT = block.OUT.copy()
-                            #IN[B] = union of OUT of all previous blocks
-                            block.IN = block.IN | prevBlock.OUT
-                            block.OUT = block.GEN | (block.IN - block.KILL)
+                self.allDefs[varName].add(newDef)
 
     
     #At the beginning I assume nothing reaches any block, so init all IN sets as empty and all OUT sets to just be copies of our GEN sets, since OUT = GEN U [IN - KILL]
