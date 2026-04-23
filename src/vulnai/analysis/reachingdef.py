@@ -10,11 +10,9 @@ class ReachingDefinitionAnalyzer:
         self.allDefs = defaultdict(set)
 
 
-    #handles the 'local' part of set creating (the GEN and KILL sets within each block)
-    #walk the block, and fill in the Gen and KILL sets as you iterate through the statements
-    def blockWalker(self, block: bb):
+    #Collects ALL var definitions globally
+    def defCollect(self, block: bb):
         for stmt in block.statements:
-
             if isinstance(stmt, ast.Assign):
 
                 target = stmt.targets[0]
@@ -23,10 +21,21 @@ class ReachingDefinitionAnalyzer:
 
                 varName = target.id
 
-                prevDefs = self.allDefs[varName].copy() #gives ALL previous defs of the variable so we can prep for deletion
                 self.definitionID += 1
                 newDef = defi(self.definitionID, varName, stmt)
 
+                self.allDefs[varName].add(newDef)
+                block.definitions.append(newDef)
+
+    #Walks through all definitions in a block and updates the GEN and KILL sets
+    #Locally: checks for any same definitions within the block and deletes them
+    #Globally: updates the local block's KILL set by checking if any prev defs exist with the same var name globally in the allDefs list
+    def defHandle(self, block: bb):
+        block.GEN = set()
+        block.KILL = set()
+
+        for definition in block.definitions:
+                varName = definition.var
                 oldDefs = set()
 
                 #for any defs of a var created in the working block
@@ -38,10 +47,10 @@ class ReachingDefinitionAnalyzer:
                 block.GEN -= oldDefs
                 block.KILL |= oldDefs
 
-                block.KILL |= prevDefs
+                block.KILL |= self.allDefs[varName] - {definition} #block kills every other instance of that variable in the program except the one it just made
+                block.GEN.add(definition)
 
-                block.GEN.add(newDef)
-                self.allDefs[varName].add(newDef)
+                
 
     
     #At the beginning I assume nothing reaches any block, so init all IN sets as empty and all OUT sets to just be copies of our GEN sets, since OUT = GEN U [IN - KILL]

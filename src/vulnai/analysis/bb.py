@@ -12,6 +12,7 @@ class BasicBlock:
     KILL: set[Definition] = field(default_factory=set)
     IN: set[Definition] = field(default_factory=set)
     OUT: set[Definition] = field(default_factory=set)
+    definitions: list[Definition] = field(default_factory=list)
 
     
 
