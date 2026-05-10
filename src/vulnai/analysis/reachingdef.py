@@ -6,9 +6,9 @@ from collections import defaultdict
 
 class ReachingDefinitionAnalyzer:
     def __init__(self):
-        self.definitionID = 1
+        self.definitionID = 0
         self.allDefs = defaultdict(set)
-
+        self.definitionLookup: dict[ast.AST, defi] = {} #key: ast.Assign node, val: The definition associated with that node
 
     #Collects ALL var definitions globally
     def defCollect(self, block: bb):
@@ -26,6 +26,7 @@ class ReachingDefinitionAnalyzer:
 
                 self.allDefs[varName].add(newDef)
                 block.definitions.append(newDef)
+                self.definitionLookup[stmt] = newDef
 
     #Walks through all definitions in a block and updates the GEN and KILL sets
     #Locally: checks for any same definitions within the block and deletes them
@@ -54,7 +55,7 @@ class ReachingDefinitionAnalyzer:
 
     
     #At the beginning I assume nothing reaches any block, so init all IN sets as empty and all OUT sets to just be copies of our GEN sets, since OUT = GEN U [IN - KILL]
-    def transferFunction(self, block: bb, cfg: cfg):
+    def transferFunction(self, cfg: cfg):
         for block in cfg.blocks:
             block.IN = set()
             block.OUT = block.GEN.copy()

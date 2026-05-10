@@ -30,10 +30,13 @@ import ast
 
 #     return x
 
-def randoFunc2(x, y, z):
-    while(x < 2 and y < 3 and z == 4):
-        x += 1
-        y += 1
-        z = 4
+# def randoFunc2(x, y, z):
+#     while(x < 2 and y < 3 and z == 4):
+#         x += 1
+#         y += 1
+#         z = 4
     
-    return x
+#     return x
+
+a = 1
+b = a + 1
