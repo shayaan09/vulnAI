@@ -19,3 +19,5 @@ All notable to-dos for this project will be documented in this file.
 [] recursiveStmtBuild() currently treats each if statement in a nested if case as its own self contained block. SO, an extra inner join block is created every time the nesting goes deeper. This is fine, but i'd rather not keep it since it in large programs it'll create ALOT of them. 
 
 [] ReachingDefAnalyzer and the UseDefAnalyzer classes only handle the Name node currently for barebones functionality to work. Other types of assignments and expressions need to be handled. 
+
+[] Improve use-def edge precision later. Current design stores useDefEdges as: statement -> set of reaching definitions. This is good enough for the first DFG, but later need to refine it to track either statement -> used variable -> reaching definitions, or exact AST Name use node → reaching definitions, to know precisely which variable/use each definition connects to.
