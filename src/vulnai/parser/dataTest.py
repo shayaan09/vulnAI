@@ -2,7 +2,7 @@
 
 
 
-import ast
+
 
 # node = ast.parse("x, y = 1, 2")
 # node2 = ast.parse("x = 1")
@@ -38,5 +38,80 @@ import ast
     
 #     return x
 
-a = 1
-b = a + 1
+import ast
+
+# from vulnai.analysis.builder import Builder
+# from vulnai.analysis.reachingdef import ReachingDefinitionAnalyzer
+# from vulnai.analysis.usedef import UseDefAnalyzer
+# from vulnai.analysis.dfg_edge import DataFlowGraph
+
+
+# source = """
+# x = 0
+# while cond:
+#     x = x + 1
+# y = x
+# """
+
+# tree = ast.parse(source)
+
+# builder = Builder()
+# cfg = builder.cfgBuild(tree.body)
+# reachingAnalyzer = ReachingDefinitionAnalyzer()
+
+# for block in cfg.blocks:
+#     reachingAnalyzer.defCollect(block)
+
+# for block in cfg.blocks:
+#     reachingAnalyzer.defHandle(block)
+
+# reachingAnalyzer.transferFunction(cfg)
+
+# useDefAnalyzer = UseDefAnalyzer()
+# useDefAnalyzer.analyze(cfg, reachingAnalyzer)
+
+# dfg = DataFlowGraph()
+# dfg.buildFromUseDefEdges(useDefAnalyzer.useDefEdges)
+
+
+# for block in cfg.blocks:
+#     print(f"\nBlock {block.id}")
+
+#     print("Statements:")
+#     for stmt in block.statements:
+#         print("  ", ast.unparse(stmt))
+
+#     print("GEN:")
+#     for d in block.GEN:
+#         print("  ", d.id, d.var, "=", ast.unparse(d.node))
+
+#     print("KILL:")
+#     for d in block.KILL:
+#         print("  ", d.id, d.var, "=", ast.unparse(d.node))
+
+#     print("IN:")
+#     for d in block.IN:
+#         print("  ", d.id, d.var, "=", ast.unparse(d.node))
+
+#     print("OUT:")
+#     for d in block.OUT:
+#         print("  ", d.id, d.var, "=", ast.unparse(d.node))
+
+
+# print("\nUSE-DEF EDGES")
+# for useStmt in useDefAnalyzer.useDefEdges:
+#     print(f"\nUSE STMT: {ast.unparse(useStmt)}")
+
+#     for definition in useDefAnalyzer.useDefEdges[useStmt]:
+#         print(f"  reached by: {definition.id} {definition.var} = {ast.unparse(definition.node)}")
+
+
+# print("\nDFG EDGES")
+# for edge in dfg.edges:
+#     print(f"{ast.unparse(edge.source)}  --->  {ast.unparse(edge.target)}")
+
+
+code_string = "x = input().strip()"
+tree = ast.parse(code_string, mode='exec')
+
+print(ast.dump(tree, indent=4))
