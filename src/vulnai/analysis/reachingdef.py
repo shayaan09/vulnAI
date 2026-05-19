@@ -8,25 +8,33 @@ class ReachingDefinitionAnalyzer:
     def __init__(self):
         self.definitionID = 0
         self.allDefs = defaultdict(set)
-        self.definitionLookup: dict[ast.AST, defi] = {} #key: ast.Assign node, val: The definition associated with that node
+        self.definitionLookup= defaultdict(dict) #Mapping: stmt -> varName -> Definition CREATED here
+
 
     #Collects ALL var definitions globally
     def defCollect(self, block: bb):
         for stmt in block.statements:
-            if isinstance(stmt, ast.Assign):
+           if isinstance(stmt, ast.Assign):
+                
+                for target in stmt.targets:
+                    if isinstance(target, ast.Name):
 
-                target = stmt.targets[0]
-                if not isinstance(target, ast.Name): #only handles name for now, need to change to handle different assignment types
-                    continue  
+                        #Wrapping in a list to save the string iteration problem. if a var is named 'data', the coming for loop will iterate over EAXH CHARACTER in the word.
+                        varNames = [target.id]
+                    elif isinstance(target, ast.Tuple) or isinstance(target, ast.List):
+                        varNames = []
+                        for elt in target.elts:
+                            if isinstance(elt, ast.Name):
+                                varNames.append(elt.id)
+                    else:
+                        continue
 
-                varName = target.id
-
-                self.definitionID += 1
-                newDef = defi(self.definitionID, varName, stmt)
-
-                self.allDefs[varName].add(newDef)
-                block.definitions.append(newDef)
-                self.definitionLookup[stmt] = newDef
+                    for varName in varNames:
+                        self.definitionID += 1
+                        newDef = defi(self.definitionID, varName, stmt)
+                        self.allDefs[varName].add(newDef)
+                        block.definitions.append(newDef)
+                        self.definitionLookup[stmt][varName] = newDef
 
     #Walks through all definitions in a block and updates the GEN and KILL sets
     #Locally: checks for any same definitions within the block and deletes them

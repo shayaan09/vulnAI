@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import ast
 
-@dataclass
+@dataclass(frozen=True)
 class Definition:
     id: int
     var: str
