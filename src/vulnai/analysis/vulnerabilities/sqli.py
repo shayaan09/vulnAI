@@ -762,4 +762,4 @@ SQLI_SANITIZERS = [
 ]
 
 
-#SQLI_RULE = VulnerabilityRule('SQLi', 'CWE-89', 'taintFlow', SQLI_SOURCES, SQLI_SINKS, SQLI_SANITIZERS)
+SQLI_RULE = VulnerabilityRule(name = 'SQLi', cwe ='CWE-89', detectionType='taintFlow', sources=SQLI_SOURCES, sinks= SQLI_SINKS, sanitizers=SQLI_SANITIZERS)
