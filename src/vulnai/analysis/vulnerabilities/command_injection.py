@@ -222,3 +222,12 @@ COMMAND_INJECTION_DANGEROUS_PATTERNS = [
     "tainted_command_string",
 ]
 
+COMMAND_RULE = VulnerabilityRule(
+    name="Command Injection",
+    cwe="CWE-78",
+    detectionType="taintFlow",
+    sources=COMMAND_INJECTION_SOURCES,
+    sinks=COMMAND_INJECTION_SINKS,
+    sanitizers=COMMAND_INJECTION_SANITIZERS,
+)
+

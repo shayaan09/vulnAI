@@ -21,3 +21,8 @@ All notable to-dos for this project will be documented in this file.
 [] ReachingDefAnalyzer and the UseDefAnalyzer classes only handle the Name node currently for barebones functionality to work. Other types of assignments and expressions need to be handled. 
 
 [] Improve use-def edge precision later. Current design stores useDefEdges as: statement -> set of reaching definitions. This is good enough for the first DFG, but later need to refine it to track either statement -> used variable -> reaching definitions, or exact AST Name use node → reaching definitions, to know precisely which variable/use each definition connects to.
+
+[] Vulnerability sink + sanitizer + source lists are too broad. Will result in ALOT of false catches. Fix.
+
+[] In the TaintAnalyzer class, self.taintedDefs is global, need to make it per rule. an XSS sanitizer will NOT sanitize an SQLi source
+

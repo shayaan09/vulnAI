@@ -7,6 +7,8 @@ from vulnai.analysis.vulns import VulnerabilityRule
 # ------------------------------------------------------------
 
 XSS_FLASK_SOURCES = [
+    "input", #not flask, just a general source
+
     # Query string: /search?q=hello
     "request.args",
     "request.args.get",
@@ -252,6 +254,7 @@ XSS_RAW_RESPONSE_SINKS = [
     "raw_html_return",
     "html_string_return",
     "manual_html_construction",
+    "return_html",
 
     # Flask / Werkzeug
     "flask.Response",
@@ -517,4 +520,12 @@ XSS_SAFE_TEMPLATE_RENDERERS = [
     "jinja2.Environment.get_template",
     "Template.render",
 ]
+
+XSS_RULE = VulnerabilityRule(name="Cross-site Scripting",
+    cwe="CWE-78",
+    detectionType="taintFlow",
+    sources=XSS_SOURCES,
+    sinks=XSS_SINKS,
+    sanitizers=XSS_SANITIZERS,
+)
 

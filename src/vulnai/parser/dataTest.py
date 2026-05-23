@@ -40,11 +40,21 @@
 
 import ast
 
-# from vulnai.analysis.builder import Builder
-# from vulnai.analysis.reachingdef import ReachingDefinitionAnalyzer
-# from vulnai.analysis.usedef import UseDefAnalyzer
-# from vulnai.analysis.dfg_edge import DataFlowGraph
-
+from vulnai.analysis.builder import Builder
+from vulnai.analysis.reachingdef import ReachingDefinitionAnalyzer
+from vulnai.analysis.usedef import UseDefAnalyzer
+from vulnai.analysis.dfg_edge import DataFlowGraph
+from vulnai.analysis.dfg import TaintAnalyzer
+from vulnai.analysis.vulnerabilities.command_injection import COMMAND_RULE
+from vulnai.analysis.vulnerabilities.hardcoded_secrets import HARDCODED_SECRETS_RULE
+from vulnai.analysis.vulnerabilities.insecure_deserialization import INSECURE_DESERIALIZATION_RULE
+from vulnai.analysis.vulnerabilities.path_traversal import PATH_TRAVERSAL_RULE
+from vulnai.analysis.vulnerabilities.insecure_random import INSECURE_RANDOM_RULE
+from vulnai.analysis.vulnerabilities.sqli import SQLI_RULE
+from vulnai.analysis.vulnerabilities.ssrf import SSRF_RULE
+from vulnai.analysis.vulnerabilities.weak_cryptography import WEAK_CRYPTOGRAPHY_RULE
+from vulnai.analysis.vulnerabilities.xss import XSS_Rule
+from vulnai.analysis.vulnerabilities.xxe import XXE_RULE
 
 # source = """
 # x = 0
