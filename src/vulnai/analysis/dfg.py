@@ -70,11 +70,8 @@ class TaintAnalyzer:
             return False
         
 
-        #Marks sources
-        allDefins = []
         for block in cfg.blocks:
             for definition in block.definitions:
-                allDefins.append(definition)
                 if self.isSource(definition.node, rule):
                     self.taintedDefs.add(definition)
 
@@ -87,27 +84,33 @@ class TaintAnalyzer:
             for block in cfg.blocks:
 
                 for stmt in block.statements:
+                    
+                    createdDefs = []
+                    if stmt in self.rda.definitionLookup:
+                        for varName in self.rda.definitionLookup[stmt]:
+                            createdDefs.append(self.rda.definitionLookup[stmt][varName])
 
                     #If stmt cleanses data, it strips the taint from the definition
                     if self.isSanitizer(stmt, rule):
-                        for definition in allDefins:
-                            if definition.node == stmt and definition in self.taintedDefs:
+                        for definition in createdDefs:
+                            if definition in self.taintedDefs:
                                 self.taintedDefs.remove(definition)
                                 changed = True
                         continue
 
                     #Checks if the current stmt uses any variable whose reaching definition is already tainted
                     usesTaint = False
-                    for varName in self.uda.useDefEdges[stmt]:
-                        for incomingDef in self.uda.useDefEdges[stmt][varName]:
-                            if incomingDef in self.taintedDefs:
-                                usesTaint = True
+                    if stmt in self.uda.useDefEdges: #because some stmts may have no use-def edge at all, like x = 5
+                        for varName in self.uda.useDefEdges[stmt]:
+                            for incomingDef in self.uda.useDefEdges[stmt][varName]:
+                                if incomingDef in self.taintedDefs:
+                                    usesTaint = True
+                                    break
+                            if usesTaint:
                                 break
-                        if usesTaint:
-                            break
                     
                     if usesTaint:
-                        for definition in allDefins:
+                        for definition in createdDefs:
                             if definition.node == stmt and definition not in self.taintedDefs:
                                 self.taintedDefs.add(definition)
                                 changed = True
