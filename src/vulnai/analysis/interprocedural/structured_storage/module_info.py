@@ -5,13 +5,14 @@ from vulnai.analysis.interprocedural.structured_storage.import_info import Impor
 from vulnai.analysis.interprocedural.structured_storage.function_info import FunctionInfo
 
 
-#One file's info
+#One file's info. Module = official name for a file. db.py's module name is db
 @dataclass
 class ModuleInfo:
     moduleName: str
     filePath: str
-    astTree: Optional[ast.Module | None] #The parsed AST for the entire file
-    parseError: Optional[str | None]
+    #None tells Python's runtime constructor these are optional
+    astTree: Optional[ast.Module | None] = None #The parsed AST for the entire file
+    parseError: Optional[str | None] = None
     
     imports: List[ImportInfo] = field(default_factory=list)
     functions: Dict[str, FunctionInfo] = field(default_factory=dict)

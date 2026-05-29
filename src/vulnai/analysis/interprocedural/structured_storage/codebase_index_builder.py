@@ -112,7 +112,7 @@ class CodebaseIndexBuilder:
                     else:
                         result = 0
 
-                    cbIndex.diagnostics.append(DiagnosticInfo(filePath=str(filePath), message=f"Failed to parse module '{moduleName}': {str(exc)}", lineno=result, severity="CRITICAL"))
+                    cbIndex.diagnostics.append(DiagnosticInfo(filePath=str(filePath), message=f"Failed to parse module '{moduleName}': {str(exc)}", lineno=result, severity="ERROR"))
                     
                     cbIndex.modules[moduleName] = modInfo
 
