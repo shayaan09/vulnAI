@@ -3,7 +3,7 @@ from vulnai.analysis.interprocedural.code_graph.resolver import ResolutionKind, 
 import ast
 
 
-#Enforces Python's LEGB Rule
+#Enforces Python's LEGB Rule and asks, In this module and this function, what does run_query ( a func ) refer to?
 class SymbolResolver:
     def __init__(self, index: CodebaseIndex):
         self.index = index

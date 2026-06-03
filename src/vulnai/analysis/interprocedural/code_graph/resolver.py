@@ -16,16 +16,18 @@ class ResolutionKind:
     externalLibrary = "EXTERNAL_LIBRARY"
     unknown = "UNKNOWN"
 
-
+#Holds what a function call points to
 @dataclass
 class ResolvedSymbol:
 
-    #globalName is optional bcz if the function is nuilt-in like print(), or completely unkonw, there is no internal project destination path, so it gets set to None.
+    #globalName is optional bcz if the function is built-in like print(), or completely unknown, there is no internal project destination path, so it gets set to None.
     globalName: Optional[str]      #e.g "db.run_query" (None if unknown/builtin)
     kind: str                       #From ResolutionKind
     confidence: str                 #"HIGH", "MEDIUM", "LOW"
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+
+#Payload attached to a GraphEdge documenting the exact context of a function call
 @dataclass
 class CallSiteInfo:
     

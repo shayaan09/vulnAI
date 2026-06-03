@@ -11,3 +11,9 @@ class VulnerabilityRule:
     sources: list[str] = field(default_factory=list)
     sinks: list[str] = field(default_factory=list)
     sanitizers: list[str] = field(default_factory=list) #something that makes dangerous/untrusted input safe before it reaches a dangerous operation
+
+
+
+
+
+    

@@ -5,7 +5,7 @@ from vulnai.analysis.interprocedural.code_graph.symbol_resolver import SymbolRes
 from vulnai.analysis.interprocedural.code_graph.resolver import ResolutionKind, CallSiteInfo
 from vulnai.analysis.interprocedural.code_graph.graph import CodeGraph
 
-
+#Which function calls which function?
 class CallGraphBuilder:
     def __init__(self, index: CodebaseIndex):
         self.index = index

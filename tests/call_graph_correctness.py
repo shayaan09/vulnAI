@@ -1,4 +1,3 @@
-import pytest
 import ast
 from vulnai.analysis.interprocedural.code_graph.graph import CodeGraph
 from vulnai.analysis.interprocedural.code_graph.callgraphbuild import CallGraphBuilder

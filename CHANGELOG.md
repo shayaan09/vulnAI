@@ -26,3 +26,4 @@ All notable to-dos for this project will be documented in this file.
 
 [] In the TaintAnalyzer class, self.taintedDefs is global, need to make it per rule. an XSS sanitizer will NOT sanitize an SQLi source
 
+[] Test `InterproceduralTaintAnalyzer` with pytest, ensure the entire pipeline is running

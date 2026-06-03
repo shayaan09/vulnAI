@@ -10,3 +10,5 @@ class GraphEdge:
     edgeType: str               # "CONTAINS" / "IMPORTS" / "CALLS"
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    #metadata is a CallSite obj instance
+
