@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
+from typing import Any
 import ast
 
 #Just some str consts
@@ -20,11 +20,12 @@ class ResolutionKind:
 @dataclass
 class ResolvedSymbol:
 
-    #globalName is optional bcz if the function is built-in like print(), or completely unknown, there is no internal project destination path, so it gets set to None.
-    globalName: Optional[str]      #e.g "db.run_query" (None if unknown/builtin)
     kind: str                       #From ResolutionKind
     confidence: str                 #"HIGH", "MEDIUM", "LOW"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    #globalName is optional bcz if the function is built-in like print(), or completely unknown, there is no internal project destination path, so it gets set to None.
+    globalName: str | None = None      #e.g "db.run_query" (None if unknown/builtin)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 #Payload attached to a GraphEdge documenting the exact context of a function call
@@ -37,3 +38,4 @@ class CallSiteInfo:
     resolutionKind: str
     confidence: str
     node: ast.Call
+    parentStmt: ast.stmt #The full function call. x = execute(), ast.Call would only give us .exectue otherwise

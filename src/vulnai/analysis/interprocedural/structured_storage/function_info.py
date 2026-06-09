@@ -1,6 +1,5 @@
 import ast
 from dataclasses import dataclass
-from typing import List,Union
 
 
 #ID card for one function
@@ -10,9 +9,9 @@ class FunctionInfo:
     name: str       #Func name (like runQuery())
     globalName: str      #Global name. like db.runQuery()
     moduleName: str         #Which module/file owns it.
-    node: Union[ast.FunctionDef, ast.AsyncFunctionDef]  #The actual AST node
+    node: ast.FunctionDef | ast.AsyncFunctionDef #The actual AST node
     lineno: int
     endLineno: int
-    params: List[str]
-    decorators: List[str]
+    params: list[str]
+    decorators: list[str]
     isAsync: bool

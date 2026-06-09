@@ -1,4 +1,4 @@
-from vulnai.analysis.vulns import VulnerabilityRule
+from vulnai.analysis.vulnerabilities.vulns import VulnerabilityRule
 
 # ============================================================
 # CWE-611: XML External Entity Injection

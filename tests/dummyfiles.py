@@ -1,14 +1,8 @@
-# =====================================================================
-# TEST FIXTURE: MOCK MODULES FOR STATIC ANALYSIS SCANNING
-# =====================================================================
 
-# --- Module: database ---
-# Global Coordinates: database.run_query
 def run_query(sql_string):
     pass
 
-# --- Module: app ---
-# Global Coordinates: app.main
+
 from database import run_query
 import os
 

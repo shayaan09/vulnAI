@@ -1,9 +1,9 @@
 import ast
-from vulnai.analysis.cfg import ControlFlowGraph as cfg
-from vulnai.analysis.builder import Builder
-from vulnai.analysis.reachingdef import ReachingDefinitionAnalyzer
-from vulnai.analysis.usedef import UseDefAnalyzer
-from vulnai.analysis.dfg_edge import DataFlowGraph as dfg
+from vulnai.analysis.intraprocedural.cfg import ControlFlowGraph as cfg
+from vulnai.analysis.intraprocedural.builder import Builder
+from vulnai.analysis.intraprocedural.reachingdef import ReachingDefinitionAnalyzer
+from vulnai.analysis.intraprocedural.usedef import UseDefAnalyzer
+from vulnai.analysis.intraprocedural.dfg_edge import DataFlowGraph as dfg
 from vulnai.analysis.dfg import TaintAnalyzer
 
 from vulnai.analysis.vulnerabilities.command_injection import COMMAND_RULE

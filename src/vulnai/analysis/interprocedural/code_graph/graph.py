@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Dict, List
 from vulnai.analysis.interprocedural.code_graph.edges import GraphEdge
 from vulnai.analysis.interprocedural.code_graph.nodes import GraphNode
 
@@ -18,10 +17,10 @@ from vulnai.analysis.interprocedural.code_graph.nodes import GraphNode
 
 @dataclass
 class CodeGraph:
-    nodes: Dict[str, GraphNode] = field(default_factory=dict) #node id -> GraphNode. stores all nodes
-    edges: List[GraphEdge] = field(default_factory=list) #stores all edges
-    outgoing: Dict[str, List[GraphEdge]] = field(default_factory=dict) #node id -> A list of Edges leaving it
-    incoming: Dict[str, List[GraphEdge]] = field(default_factory=dict) #node id -> A list of Edges landing on it
+    nodes: dict[str, GraphNode] = field(default_factory=dict) #node id -> GraphNode. stores all nodes
+    edges: list[GraphEdge] = field(default_factory=list) #stores all edges
+    outgoing: dict[str, list[GraphEdge]] = field(default_factory=dict) #node id -> A list of Edges leaving it
+    incoming: dict[str, list[GraphEdge]] = field(default_factory=dict) #node id -> A list of Edges landing on it
 
     def addNode(self, node: GraphNode):
 

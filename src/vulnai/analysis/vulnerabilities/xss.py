@@ -1,4 +1,4 @@
-from vulnai.analysis.vulns import VulnerabilityRule
+from vulnai.analysis.vulnerabilities.vulns import VulnerabilityRule
 
 # ------------------------------------------------------------
 # 1. SOURCES

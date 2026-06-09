@@ -18,10 +18,6 @@ def test_end_to_end_call_graph_resolution(tmp_path: Path):
     ensuring structural edges (CONTAINS, IMPORTS) do not pollute behavioral edge (CALLS) assertions.
     """
     
-    # ==========================================
-    # 1. SETUP: Write a real mini-codebase to disk
-    # ==========================================
-    
     db_file = tmp_path / "db.py"
     db_file.write_text("def execute_query(query_string):\n    pass\n")
 
@@ -38,9 +34,6 @@ def test_end_to_end_call_graph_resolution(tmp_path: Path):
         "    print('Done')\n"
     )
 
-    # ==========================================
-    # 2. EXECUTE: Run the real processing pipeline
-    # ==========================================
     
    
     # 1. Build the index (Returns populated index)
@@ -56,24 +49,19 @@ def test_end_to_end_call_graph_resolution(tmp_path: Path):
     call_builder = CallGraphBuilder(index)
     call_builder.build(graph)
 
-    # ==========================================
-    # 3. VERIFY: Assert Pipeline Correctness
-    # ==========================================
+   
     
-    # --- A. Node and Index Verification ---
     assert "app.process_request" in index.functionTable
     assert "function:app.process_request" in graph.nodes
     assert "function:db.execute_query" in graph.nodes
     assert "function:auth.verify_token" in graph.nodes
 
-    # --- B. Edge Filtering Helpers ---
     # Fixed: Explicitly targets the 'edgeType' attribute of the GraphEdge class
     def is_call_edge(edge):
         return getattr(edge, "edgeType", "") in ("CALL", "CALLS")
     
     call_edges = [e for e in graph.edges if is_call_edge(e)]
     
-    # --- C. Global Edge Assertions ---
     assert len(call_edges) == 2, f"Expected exactly 2 CALL edges, found {len(call_edges)}"
 
     def call_edge_exists(source: str, target: str) -> bool:
@@ -85,7 +73,6 @@ def test_end_to_end_call_graph_resolution(tmp_path: Path):
     assert call_edge_exists("function:app.process_request", "function:db.execute_query"), \
         "Failed to resolve `import module` attribute integration across files."
 
-    # --- D. Adjacency Map Assertions ---
     # Filter adjacency lists to separate structural 'CONTAINS' from behavioral 'CALLS'
     process_request_outgoing_calls = [e for e in graph.outgoing.get("function:app.process_request", []) if is_call_edge(e)]
     db_execute_incoming_calls = [e for e in graph.incoming.get("function:db.execute_query", []) if is_call_edge(e)]

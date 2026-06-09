@@ -1,5 +1,5 @@
 import ast
-from vulnai.analysis.builder import Builder
+from vulnai.analysis.intraprocedural.builder import Builder
 #Will go into the file we grab from the cli.py and reads the contents, then converts them into code and returns the AST for that code
 def fileToCode(fileName: str):
     with open(fileName, 'r', encoding="utf-8") as fileObj:

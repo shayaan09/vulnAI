@@ -127,10 +127,28 @@ import ast
 # print(ast.dump(tree, indent=4))
 
 code_string = """
-@my_decorator
-def process_data(items: list, scale: int = 1) -> bool:
-    result = len(items) * scale
-    return result > 0
+def sample(a, /, b: int = 5, *args, c=True, **kwargs):
+    x = input("cmd: ")
+    y = a + b
+    z = sanitize(x) + y
+
+    if z:
+        os.system(z)
+    else:
+        print("safe")
+
+    for item in args:
+        y += item
+
+    with open("file.txt") as f:
+        data = f.read()
+
+    try:
+        result = kwargs.get("key")
+    except Exception as e:
+        result = str(e)
+
+    return result
 """
 tree = ast.parse(code_string, mode="exec")
 
