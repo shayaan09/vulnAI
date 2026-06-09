@@ -1,0 +1,27 @@
+# Python cache/build files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Package/build metadata
+*.egg-info/
+build/
+dist/
+
+# Test/cache files
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE/editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
