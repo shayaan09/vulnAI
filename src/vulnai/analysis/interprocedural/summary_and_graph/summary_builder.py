@@ -6,8 +6,18 @@ from vulnai.analysis.vulnerabilities.vulns import VulnerabilityRule
 from vulnai.analysis.interprocedural.summary_and_graph.summarystore import FunctionSummary
 from collections import defaultdict
 from vulnai.analysis.vulnerabilities.rule_registry import RuleRegistry
+from vulnai.analysis.interprocedural.structured_storage.function_info import FunctionInfo
 
-#Follows a guilty until proven innocent path. EVERYTHING is tainted until proven otherwise
+#Follows a guilty until proven innocent path. tainted until proven otherwise
+
+# Local identity info:
+# params, decorators, line number, AST node, module, global name
+# handled by CodebaseIndexBuilder
+
+# Local behavior info:
+# taint flow, returns, sinks, sources, sanitizers, vulnerabilities
+# handled by FunctionSummaryBuilder
+
 class FunctionSummaryBuilder:
     def __init__(self, useDefAnalyzer: UseDefAnalyzer, reachingDefAnalyzer: ReachingDefinitionAnalyzer):
         self.uda = useDefAnalyzer
@@ -49,27 +59,6 @@ class FunctionSummaryBuilder:
     #Helper to extract the string name of a call function or method
     def getCallName(self, callNode: ast.Call) -> str | None:
         return self.recursiveGetter(callNode.func)
-    
-
-    #Extracts ALL variations of func inputs like positional, positional-only, keyword-only, *args, and **kwargs
-    #like: def run(a, /, b, *, c, *args, **kwargs)
-    def paramExtract(self, funcNode: ast.FunctionDef) -> list[str]:
-        params = []
-        argsObj = funcNode.args
-        
-        #the [] helps with crashing
-        for arg in getattr(argsObj, 'posonlyargs', []) + argsObj.args:
-            params.append(arg.arg)
-        
-        for arg in getattr(argsObj, 'kwonlyargs', []):
-            params.append(arg.arg)
-            
-        if argsObj.vararg:
-            params.append(argsObj.vararg.arg)
-        if argsObj.kwarg:
-            params.append(argsObj.kwarg.arg)
-            
-        return params
     
 
     #Checks if an expression is source tainted and/or does it depend on any function params. Strips the CWE labels off slowly if they do not exist in the function
@@ -237,24 +226,23 @@ class FunctionSummaryBuilder:
 
     #Take one function -> Analyze it locally -> Return a FunctionSummary
     #I wanted to modularize this more, but i am genuinely too scared and too tired to try, so bear with the block of code lol
-    def buildSummary(self, funcNode: ast.FunctionDef, cfgObj: cfg, registry: RuleRegistry, moduleName: str = ""):
+    def buildSummary(self, funcInfo: FunctionInfo, cfgObj: cfg, registry: RuleRegistry):
 
         #track the srcs and params for the func being checked ONLY
         self.sourceTaintedMap = {}
         self.paramTaintedMap = defaultdict(lambda: defaultdict(set))
 
-        fullName = f"{moduleName}.{funcNode.name}" if moduleName else funcNode.name
+        fullName = funcInfo.globalName
+
         summary = FunctionSummary(functionName=fullName)
+
         
-
-
-
         #A param is an untrusted entry whose contents are unknown during Phase 1.
         #By stamping the param with every possible CWE label up front,
         #the engine can trace those labels through the function's internal syntax branches.
         #If an input travels through an HTML sanitizer, the XSS label drops off. Labels keep dropping off and whatever
         #labels survie to the end, are recorded.
-        params = self.paramExtract(funcNode)
+        params = funcInfo.params
         allCwes = {rule.cwe for rule in registry.taintRules} #list of all cwes from rule registry
 
         for block in cfgObj.blocks:

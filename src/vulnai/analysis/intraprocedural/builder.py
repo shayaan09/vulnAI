@@ -9,7 +9,7 @@ class Builder:
 
         block = newCfg.blockBuild()
         newCfg.blockConnector(newCfg.entryBlock, block)
-        print(f"[BLOCK {newCfg.entryBlock.id}] -> [BLOCK {block.id}]")
+        #print(f"[BLOCK {newCfg.entryBlock.id}] -> [BLOCK {block.id}]")
 
         #We grab the args from the function signature and force them 
         #into the very first working block so RDA and UDA can see them
@@ -39,7 +39,7 @@ class Builder:
                 block.statements.append(statement.test)
                 ifTrue = currentCfg.blockBuild()
                 currentCfg.blockConnector(block, ifTrue)
-                print(f"[BLOCK {block.id}] -> [BLOCK {ifTrue.id}]")
+                # #print(f"[BLOCK {block.id}] -> [BLOCK {ifTrue.id}]")
                 trueEnd = self.recursiveStmtBuild(currentCfg, statement.body, ifTrue)
 
 
@@ -47,21 +47,21 @@ class Builder:
                 ifFalse = currentCfg.blockBuild()
                 currentCfg.blockConnector(block, ifFalse)
                
-                print(f"[BLOCK {block.id}] -> [BLOCK {ifFalse.id}]")
+                 ##print(f"[BLOCK {block.id}] -> [BLOCK {ifFalse.id}]")
                 falseEnd = self.recursiveStmtBuild(currentCfg, statement.orelse, ifFalse)
 
                 
                 joinBlock = currentCfg.blockBuild()
                 currentCfg.blockConnector(trueEnd, joinBlock)
-                print(f"[BLOCK {trueEnd.id}] -> [BLOCK {joinBlock.id}]")
+                #print(f"[BLOCK {trueEnd.id}] -> [BLOCK {joinBlock.id}]")
                 currentCfg.blockConnector(falseEnd, joinBlock)
-                print(f"[BLOCK {falseEnd.id}] -> [BLOCK {joinBlock.id}]")
+                #print(f"[BLOCK {falseEnd.id}] -> [BLOCK {joinBlock.id}]")
                 block = joinBlock
 
             elif(isinstance(statement, (ast.For, ast.While))):
                 loopHead = currentCfg.blockBuild()
                 currentCfg.blockConnector(block, loopHead)
-                print(f"[BLOCK {block.id}] -> [BLOCK {loopHead.id}]")
+                #print(f"[BLOCK {block.id}] -> [BLOCK {loopHead.id}]")
 
                 if isinstance(statement, ast.For):
                     #Wrap in an expression to isolate it from the body for clean AST walking
@@ -73,16 +73,16 @@ class Builder:
 
                 loopBody = currentCfg.blockBuild()
                 currentCfg.blockConnector(loopHead, loopBody)
-                print(f"[BLOCK {loopHead.id}] -> [BLOCK {loopBody.id}]")
+                #print(f"[BLOCK {loopHead.id}] -> [BLOCK {loopBody.id}]")
 
                 finalBodyBlock = self.recursiveStmtBuild(currentCfg, statement.body, loopBody)
                 currentCfg.blockConnector(finalBodyBlock, loopHead)
-                print(f"[BLOCK {finalBodyBlock.id}] -> [BLOCK {loopHead.id}]")
+                #print(f"[BLOCK {finalBodyBlock.id}] -> [BLOCK {loopHead.id}]")
 
 
                 joinBlock = currentCfg.blockBuild()
                 currentCfg.blockConnector(loopHead, joinBlock)
-                print(f"[BLOCK {loopHead.id}] -> [BLOCK {joinBlock.id}]")
+                #print(f"[BLOCK {loopHead.id}] -> [BLOCK {joinBlock.id}]")
 
                 block = joinBlock
                 

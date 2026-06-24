@@ -31,32 +31,85 @@ class CodebaseIndexBuilder:
                     imports.append(ImportInfo(moduleName=fromModule, importedName=alias.name, alias=alias.asname, kind="from_import", lineno=node.lineno))
 
         return imports
-
-    def functionExtractor(self, tree: ast.Module, moduleName: str) -> list[str, FunctionInfo]:
-        functions = {}
+    
+    #Extracts ALL variations of func inputs like positional, positional-only, keyword-only, *args, and **kwargs
+    #like: def run(a, /, b, *, c, *args, **kwargs)
+    def paramExtract(self, funcNode: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+        params = []
+        argsObj = funcNode.args
         
+        #the [] helps with crashing
+        for arg in getattr(argsObj, 'posonlyargs', []) + argsObj.args:
+            params.append(arg.arg)
+        
+        for arg in getattr(argsObj, 'kwonlyargs', []):
+            params.append(arg.arg)
+            
+        if argsObj.vararg:
+            params.append(argsObj.vararg.arg)
+        if argsObj.kwarg:
+            params.append(argsObj.kwarg.arg)
+            
+        return params
+
+    def decoratorExtract(self, funcNode: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+        decorators = []
+
+        for dec in funcNode.decorator_list:
+            if isinstance(dec, ast.Name):
+                decorators.append(dec.id)
+
+            elif isinstance(dec, ast.Attribute):
+                decorators.append(ast.unparse(dec))
+
+            else:
+                decorators.append(ast.unparse(dec))
+
+        return decorators
+
+
+    def functionExtractor(self, tree: ast.Module, moduleName: str) -> dict[str, FunctionInfo]:
+        functions = {}
 
         for node in tree.body:
-            if(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))):
-                params = []
-        
-                for arg in node.args.args:
-                    params.append(arg.arg)
 
-                decorators = []
-                for dec in node.decorator_list:
+            #Top level funcs
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                localName = node.name
+                functions[localName] = FunctionInfo(
+                    name=node.name,
+                    globalName=f"{moduleName}.{localName}",
+                    moduleName=moduleName,
+                    node=node,
+                    lineno=node.lineno,
+                    endLineno=node.end_lineno,
+                    params=self.paramExtract(node),
+                    decorators=self.decoratorExtract(node),
+                    isAsync=isinstance(node, ast.AsyncFunctionDef)
+                )
 
-                    if isinstance(dec, ast.Name):
-                        decorators.append(dec.id)
+            #Class methods
+            elif isinstance(node, ast.ClassDef):
+                className = node.name
 
-                    elif isinstance(dec, ast.Attribute):
+                for child in node.body:
+                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        localName = f"{className}.{child.name}"
 
-                        #Handle cases like @classmethod
-                        decorators.append(ast.unparse(dec))
+                        functions[localName] = FunctionInfo(
+                            name=child.name,
+                            globalName=f"{moduleName}.{localName}",
+                            moduleName=moduleName,
+                            node=child,
+                            lineno=child.lineno,
+                            endLineno=child.end_lineno,
+                            params=self.paramExtract(child),
+                            decorators=self.decoratorExtract(child),
+                            isAsync=isinstance(child, ast.AsyncFunctionDef)
+                        )
 
-                functions[node.name] = FunctionInfo(name = node.name, globalName=f"{moduleName}.{node.name}", moduleName=moduleName, node= node, lineno=node.lineno, endLineno=node.end_lineno, params=params, decorators=decorators, isAsync=isinstance(node, ast.AsyncFunctionDef))
-            
         return functions
+    
     
     def build(self, rootPathStr: str) -> CodebaseIndex:
         rootPath = Path(rootPathStr).resolve()

@@ -29,7 +29,7 @@ class FunctionSummary:
     #Prevents the analyzer from generating duplicate error logs for the exact same vulnerability
     _reportedLocalSigs: set[tuple] = field(default_factory=set, repr=False)
 
-    #Stores pattern based haredcoded vals like API keys
+    #Stores pattern based hardcoded vals like API keys
     bannedPatterns: list[dict] = field(default_factory=list)
 
 

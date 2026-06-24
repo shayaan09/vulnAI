@@ -67,7 +67,7 @@ class UseDefAnalyzer:
             for arg in stmt.args + getattr(stmt, 'kwonlyargs', []) + getattr(stmt, 'posonlyargs', []):
                 definitions.append(arg.arg)
                 
-            if stmt.var: definitions.append(stmt.var.arg)
+            if stmt.vararg: definitions.append(stmt.vararg.arg)
             if stmt.kwarg: definitions.append(stmt.kwarg.arg)
 
         return definitions

@@ -38,4 +38,4 @@ class CallSiteInfo:
     resolutionKind: str
     confidence: str
     node: ast.Call
-    parentStmt: ast.stmt #The full function call. x = execute(), ast.Call would only give us .exectue otherwise
+    parentStmt: ast.stmt | None #The full function call. x = execute(), ast.Call would only give us .exectue otherwise

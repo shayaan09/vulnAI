@@ -15,3 +15,16 @@ class CodebaseIndex:
     #value: module names that the source file is trying to import
     importGraph: dict[str, set[str]] = field(default_factory=dict)
     diagnostics: list[DiagnosticInfo] = field(default_factory=list)
+
+    #debugging
+    stats: dict[str, int] = field(default_factory=lambda: {
+        "filesSeen": 0,
+        "filesParsed": 0,
+        "filesFailed": 0,
+        "modulesIndexed": 0,
+        "rawAstCalls": 0,
+        "callablesIndexed": 0,
+        "topLevelFunctionsIndexed": 0,
+        "methodsIndexed": 0,
+        "nestedFunctionsIndexed": 0,
+    })

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable to-dos for this project will be documented in this file.
+All notable to-dos (erros, initial design decisions, and holes that need to be fixed) for this project will be documented in this file.
 
 ---
 
@@ -22,10 +22,21 @@ All notable to-dos for this project will be documented in this file.
 
 [X] Improve use-def edge precision later. Current design stores useDefEdges as: statement -> set of reaching definitions. This is good enough for the first DFG, but later need to refine it to track either statement -> used variable -> reaching definitions, or exact AST Name use node → reaching definitions, to know precisely which variable/use each definition connects to.
 
-[] Vulnerability sink + sanitizer + source lists are too broad. Will result in ALOT of false catches. Fix.
+[] Vulnerability sink + sanitizer + source lists are too broad. Will result in ALOT of false catches.
 
 [X] In the TaintAnalyzer class, self.taintedDefs is global, need to make it per rule. an XSS sanitizer will NOT sanitize an SQLi source
 
 [X] Test `InterproceduralTaintAnalyzer` with pytest, ensure the entire pipeline is running
 
 [X] Changed Optional[] from typing to the union operator, however, this may struggle with older python enviornments, like below 3.10, add more version compatibility
+
+[] New limitation found:
+
+- CodebaseIndexBuilder only indexes top-level functions, it completely bypasses class methods, nested functions.
+- decorator extraction misses call decorators, and relative imports lose info
+
+[] Modify CodebaseIndexBuilder's param extract. copy and implement the extraction func used in function summary builder
+
+[] Code graph only handles LOCAL and self-defined functions. This creates a massive blindspot, since every external function is essentially discarded. 
+
+[] Caught repeated work: `buildSummary()` in `FunctionSummaryBuilder` should take FunctionInfo, not ast.FunctionDef, we are re-doing work we did when building the codebase index.
