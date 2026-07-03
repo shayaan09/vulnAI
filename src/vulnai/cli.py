@@ -3,35 +3,32 @@ import argparse
 import os
 
 from vulnai.scanner import Scanner, print_scan_result
+from vulnai.benchmark import BenchmarkScorer
+
 
 def main():
     parser= argparse.ArgumentParser(prog="vulnai")
     subparsers = parser.add_subparsers(dest="cmd", help="Subcommand Help")
-    parser_scan = subparsers.add_parser("scan", aliases=["s"], help="Scans the file provided")
+    parser_scan = subparsers.add_parser("scan", aliases=["s"], help="Scans the codebase provided")
     parser_scan.add_argument("target", help="Path of the directory being scanned")
+
+    benchmark_parser = subparsers.add_parser("benchmark", aliases=["b"], help="Run benchmark scoring")
+    benchmark_parser.add_argument("target", help="Benchmark target directory")
+    benchmark_parser.add_argument("expected", help="Expected results CSV file")
+
     args = parser.parse_args() #Checks if the args passed are valid or no.
 
     if args.cmd == "scan" or args.cmd == 's':
-        target_path = args.target
-
-        if not os.path.exists(target_path):
-            print(f"[!] Error: Target path does not exist: {target_path}")
-            return
-
-        if not os.path.isdir(target_path):
-            print("[!] For now, vulnAI full scan expects a directory.")
-            print("    Example:")
-            print("    vulnai scan benchmarks/external/pygoat")
-            return
-
         scanner = Scanner()
-        result = scanner.scan(target_path)
+        result = scanner.scan(args.target)
         print_scan_result(result)
-        return
 
-    elif args.cmd is None:
+    elif args.cmd in ["benchmark", "b"]:
+        scorer = BenchmarkScorer(args.target, args.expected)
+        scorer.score()
+
+    else:
         parser.print_help()
-        return
 
 
 if __name__ == "__main__":
