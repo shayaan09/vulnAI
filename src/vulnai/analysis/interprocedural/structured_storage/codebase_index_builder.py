@@ -17,6 +17,8 @@ class CodebaseIndexBuilder:
         allStyle = relativePath.as_posix() #uses pathlib. Forces any file path to become Mac/Linux style
         return allStyle.replace("/", ".")
     
+    #Pre-seeds ImportInfo so buildImportAliasMap can sort and identify different import styles
+    #importExtractor extracts raw import records while the buildImportAliasMap converts those records into local-name -> canonical-name maps
     def importExtractor(self, tree: ast.Module) -> list[ImportInfo]:
         imports = []
 
@@ -32,6 +34,55 @@ class CodebaseIndexBuilder:
 
         return imports
     
+    
+    def buildImportAliasMap(self, imports: list[ImportInfo]) -> dict[str, str]:
+        aliasMap: dict[str, str] = {}
+
+        for imp in imports:
+
+            #Handles:
+            #import subprocess
+            #import subprocess as sp
+            #import xml.etree.ElementTree as ET
+            if imp.kind == "import":
+                fullModuleName = imp.moduleName
+
+                #import x as y
+                if imp.alias:
+                    aliasMap[imp.alias] = fullModuleName
+
+                #simple lol. import x
+                else:
+
+                    #xml.etree.ElementTree.split(".", 1)[0] = xml
+                    topLevelName = fullModuleName.split(".", 1)[0]
+                    aliasMap[topLevelName] = topLevelName
+
+            #Handles:
+            #from subprocess import Popen
+            #from subprocess import Popen as pop
+            #from pickle import loads
+            #from xml.etree import ElementTree as ET
+            elif imp.kind == "from_import":
+                fromModule = imp.moduleName
+                importedName = imp.importedName
+
+                if not importedName or importedName == '*':
+                    continue
+
+                localName = imp.alias or importedName
+
+                #Handles odd case:
+                #from . import something
+                if fromModule:
+                    canonicalName = f"{fromModule}.{importedName}"
+                else:
+                    canonicalName = importedName
+
+                aliasMap[localName] = canonicalName
+
+        return aliasMap
+
     #Extracts ALL variations of func inputs like positional, positional-only, keyword-only, *args, and **kwargs
     #like: def run(a, /, b, *, c, *args, **kwargs)
     def paramExtract(self, funcNode: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
@@ -121,7 +172,7 @@ class CodebaseIndexBuilder:
                     dirnames.remove(d)
 
             for filename in filenames:
-                if not filename.endswith('py'):
+                if not filename.endswith('.py'):
                     continue
                     
                 filePath = Path(dirpath) / filename #combine the directroy path with the filename to get the file address
@@ -139,6 +190,7 @@ class CodebaseIndexBuilder:
                     modInfo.astTree = tree
                     
                     modInfo.imports = self.importExtractor(tree)
+                    modInfo.importAliasMap = self.buildImportAliasMap(modInfo.imports)
                     modInfo.functions = self.functionExtractor(tree, moduleName)
                     
                     #Add module info to the global CodeBaseIndex class

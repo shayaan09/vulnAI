@@ -19,3 +19,4 @@ class ModuleInfo:
     
     classes: list[str] = field(default_factory=list)
     globals: list[str] = field(default_factory=list) #Stores module-level assignments like API KEY  
+    importAliasMap: dict[str, str] = field(default_factory=dict)

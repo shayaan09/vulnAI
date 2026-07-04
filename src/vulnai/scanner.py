@@ -49,7 +49,7 @@ class Scanner:
 
         return function_param_map, function_ast_map
 
-    def build_one_function_summary(self, func_info, registry):
+    def build_one_function_summary(self, func_info, registry, importAliasMap=None):
         """
         Runs the full intraprocedural pipeline for ONE function:
 
@@ -90,6 +90,7 @@ class Scanner:
             funcInfo=func_info,
             cfgObj=cfg_obj,
             registry=registry,
+            importAliasMap=importAliasMap or {},
         )
 
         return summary
@@ -158,7 +159,15 @@ class Scanner:
 
         for global_name, func_info in codebase_index.functionTable.items():
             try:
-                summary = self.build_one_function_summary(func_info, registry)
+                module_info = codebase_index.modules.get(func_info.moduleName)
+                importAliasMap = getattr(module_info, "importAliasMap", {}) if module_info else {}
+
+                summary = self.build_one_function_summary(
+                    func_info=func_info,
+                    registry=registry,
+                    importAliasMap=importAliasMap,
+                )
+
                 summary_store.addSummary(summary)
                 result.summaries_built += 1
 

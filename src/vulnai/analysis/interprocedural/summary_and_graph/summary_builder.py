@@ -35,6 +35,8 @@ class FunctionSummaryBuilder:
         #Definition -> (paramName -> set of cwe ids)
         self.paramTaintedMap: dict[object, dict[str, set[str]]] = {} 
 
+        self.importAliasMap: dict[str, str] = {}
+
 
 
     #Recursively builds fully constructed call path like:
@@ -60,6 +62,84 @@ class FunctionSummaryBuilder:
     def getCallName(self, callNode: ast.Call) -> str | None:
         return self.recursiveGetter(callNode.func)
     
+
+    #Converts all the raw call names we get from getCallName() into the canonical name the rules understand
+    #like: sp.Popen -> subprocess.Popen
+    def canonicalizeCallName(self, rawCallName: str | None) -> str | None:
+        if not rawCallName:
+            return None
+
+        if not self.importAliasMap:
+            return rawCallName
+
+        parts = rawCallName.split(".")
+
+        firstPart = parts[0]
+
+        if firstPart not in self.importAliasMap:
+            return rawCallName
+
+        canonicalFirstPart = self.importAliasMap[firstPart]
+
+        if len(parts) == 1:
+            return canonicalFirstPart
+
+        remainingParts = parts[1:]
+
+        return ".".join([canonicalFirstPart] + remainingParts)
+
+    #Tries the canonical call name first, if that finds nothing, try the raw call name
+    #Returns both the CWE set and the name that matched
+    def lookupCwesForCall(self, rawCallName: str | None, lookupFunc) -> tuple[set[str], str | None]: #str= the matched name from the rule registry
+        if not rawCallName:
+            return set(), None
+
+        canonicalCallName = self.canonicalizeCallName(rawCallName)
+
+        #Try canonical name first
+        if canonicalCallName:
+            cwes = lookupFunc(canonicalCallName)
+            if cwes:
+                return cwes, canonicalCallName
+
+        #Raw fallback
+        if rawCallName != canonicalCallName:
+            cwes = lookupFunc(rawCallName)
+            if cwes:
+                return cwes, rawCallName
+
+        return set(), canonicalCallName or rawCallName
+    #the set above returns smth like: ({"CWE-78"}, "subprocess.Popen")
+
+
+    def getSourceCwesForCall(self, rawCallName: str | None, registry: RuleRegistry) -> tuple[set[str], str | None]:
+        return self.lookupCwesForCall(rawCallName, registry.getSourceCwes)
+
+
+    def getSinkCwesForCall(self, rawCallName: str | None, registry: RuleRegistry) -> tuple[set[str], str | None]:
+        return self.lookupCwesForCall(rawCallName, registry.getSinkCwes)
+
+
+    def getSanitizerCwesForCall(self, rawCallName: str | None, registry: RuleRegistry) -> tuple[set[str], str | None]:
+        return self.lookupCwesForCall(rawCallName, registry.getSanitizerCwes)
+
+
+    #checks canonical in rule.sinks, if not there, check raw rule.sinks
+    def getMatchedPatternCallName(self, rawCallName: str | None, rule) -> str | None:
+        if not rawCallName:
+            return None
+
+        canonicalCallName = self.canonicalizeCallName(rawCallName)
+
+        #Try canonical first
+        if canonicalCallName and canonicalCallName in rule.sinks:
+            return canonicalCallName
+
+        #Raw fallback
+        if rawCallName in rule.sinks:
+            return rawCallName
+
+        return None
 
     #Checks if an expression is source tainted and/or does it depend on any function params. Strips the CWE labels off slowly if they do not exist in the function
     #first item it returns is sourceCwes (a set of active source-based CWEs). The second is paramDeps (a dict mapping a param name to the CWEs it could trigger)
@@ -98,7 +178,7 @@ class FunctionSummaryBuilder:
 
             if callName:
                 #Sanitizer Set Subtraction. This is where it starts stripping labels off
-                sanitizerToCwes = registry.getSanitizerCwes(callName)
+                sanitizerToCwes, _ = self.getSanitizerCwesForCall(callName, registry)
 
                 if sanitizerToCwes:
                     sourceCwes -= sanitizerToCwes #cleans local var taints
@@ -110,7 +190,7 @@ class FunctionSummaryBuilder:
 
                 #Source Set Addition. handles the case: What if the function call itself is the origin of the toxic data
                 #what if a function sanitizes input arguments, but then returns brand new untrusted stuff 
-                newSrcCwes = registry.getSourceCwes(callName)
+                newSrcCwes, _ = self.getSourceCwesForCall(callName, registry)
                 sourceCwes.update(newSrcCwes)
 
             return sourceCwes, paramDeps
@@ -182,8 +262,9 @@ class FunctionSummaryBuilder:
                 if callName:
 
                     for rule in registry.patternRules:
+                        matchedCallName = self.getMatchedPatternCallName(callName, rule)
 
-                        if callName in rule.sinks:
+                        if matchedCallName:
                             summary.bannedPatterns.append({
                                 "vulnerability": f"Static Pattern Match: {rule.name}",
                                 "cwe": rule.cwe,
@@ -226,11 +307,12 @@ class FunctionSummaryBuilder:
 
     #Take one function -> Analyze it locally -> Return a FunctionSummary
     #I wanted to modularize this more, but i am genuinely too scared and too tired to try, so bear with the block of code lol
-    def buildSummary(self, funcInfo: FunctionInfo, cfgObj: cfg, registry: RuleRegistry):
+    def buildSummary(self, funcInfo: FunctionInfo, cfgObj: cfg, registry: RuleRegistry, importAliasMap: dict[str, str]):
 
         #track the srcs and params for the func being checked ONLY
         self.sourceTaintedMap = {}
         self.paramTaintedMap = defaultdict(lambda: defaultdict(set))
+        self.importAliasMap = importAliasMap
 
         fullName = funcInfo.globalName
 
@@ -241,7 +323,7 @@ class FunctionSummaryBuilder:
         #By stamping the param with every possible CWE label up front,
         #the engine can trace those labels through the function's internal syntax branches.
         #If an input travels through an HTML sanitizer, the XSS label drops off. Labels keep dropping off and whatever
-        #labels survie to the end, are recorded.
+        #labels survive to the end, are recorded.
         params = funcInfo.params
         allCwes = {rule.cwe for rule in registry.taintRules} #list of all cwes from rule registry
 
@@ -329,11 +411,12 @@ class FunctionSummaryBuilder:
                         summary.returnsTainted[cwe] = True #flags that whatever params you pass in the func, it will ALWAYS return tainted data 
 
                         if isinstance(stmt.value, ast.Call):
-                            cName = self.getCallName(stmt.value)
+                            callName = self.getCallName(stmt.value)
 
-                            if cName and registry.getSourceCwes(cName):
-                                summary.directSourceReturn[cwe] = cName
+                            directSourceCwes, matchedSourceName = self.getSourceCwesForCall(callName, registry)
 
+                            if matchedSourceName and cwe in directSourceCwes:
+                                summary.directSourceReturn[cwe] = matchedSourceName
 
                     #Checks if the parameter name has been seen yet in our summary map (initializing it with an empty set if it's new),
                     #and runs .update(cwes) to merge the vulnerability labels
@@ -358,11 +441,11 @@ class FunctionSummaryBuilder:
 
                     if isinstance(node, ast.Call):
                         callName = self.getCallName(node)
-                        sinkCwes = registry.getSinkCwes(callName) if callName else set()
+                        sinkCwes, matchedSinkName = self.getSinkCwesForCall(callName, registry)
                         
-                        if callName and sinkCwes:
-                            if callName not in summary.sinkCalls:
-                                summary.sinkCalls.append(callName)
+                        if matchedSinkName and sinkCwes:
+                            if matchedSinkName not in summary.sinkCalls:
+                                summary.sinkCalls.append(matchedSinkName)
 
                             argsToCheck = node.args + [kw.value for kw in node.keywords]
                             
@@ -374,14 +457,14 @@ class FunctionSummaryBuilder:
 
                                 for cwe in activeSinkCwes:
 
-                                    localSig = (fullName, cwe, callName, ast.unparse(argNode).strip(), getattr(stmt, 'lineno', 0))
+                                    localSig = (fullName, cwe, matchedSinkName, ast.unparse(argNode).strip(), getattr(stmt, 'lineno', 0))
 
                                     if localSig not in summary._reportedLocalSigs:
                                         summary._reportedLocalSigs.add(localSig)
                                         summary.localVulnerabilities.append({
                                             "vulnerability": "Local Taint-To-Sink Flow",
                                             "cwe": cwe,
-                                            "sink": callName,
+                                            "sink": matchedSinkName,
                                             "expression": ast.unparse(node).strip(),
                                             "line": getattr(stmt, 'lineno', "Unknown")
                                         })
@@ -395,7 +478,7 @@ class FunctionSummaryBuilder:
                                         if pName not in summary.paramsToSinks:
                                             summary.paramsToSinks[pName] = defaultdict(list)
 
-                                        if callName not in summary.paramsToSinks[pName][cwe]:
-                                            summary.paramsToSinks[pName][cwe].append(callName)
+                                        if matchedSinkName not in summary.paramsToSinks[pName][cwe]:
+                                            summary.paramsToSinks[pName][cwe].append(matchedSinkName)
 
         return summary
