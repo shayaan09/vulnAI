@@ -1,6 +1,7 @@
 # vulnAI
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![PyPI](https://img.shields.io/pypi/v/vulnai)](https://pypi.org/project/vulnai/)
 [![Package](https://img.shields.io/badge/package-CLI-111827)](#installation)
 [![Analysis](https://img.shields.io/badge/analysis-interprocedural%20taint-5B8DEF)](#how-it-works)
 [![Benchmark](https://img.shields.io/badge/OWASP%20Benchmark%20Python-F1%200.85-22C55E)](#benchmark-results)
@@ -78,11 +79,13 @@ important fact is that attacker-controlled input reached it.
 
 ## Installation
 
-After publishing to PyPI:
+Install the published CLI from PyPI:
 
 ```powershell
 pip install vulnai
 ```
+
+PyPI package: [vulnai](https://pypi.org/project/vulnai/)
 
 From source:
 
