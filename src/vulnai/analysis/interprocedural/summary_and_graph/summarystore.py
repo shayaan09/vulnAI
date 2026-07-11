@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-
+from collections import defaultdict
 
 #Keeps track of a func's behavior (which parameters trigger sinks, what returns are tainted)
 
@@ -31,6 +31,13 @@ class FunctionSummary:
 
     #Stores pattern based hardcoded vals like API keys
     bannedPatterns: list[dict] = field(default_factory=list)
+
+    #Basically says: “Inside this function, these local variables are already known to be tainted because they came from a source.”
+    # var -> set of cwes it may contain
+    localSourceVars: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+
+    # #local var X depends on param Y for Z CWE types. var -> param -> CWE set
+    paramDependentVars: dict[str, dict[str, set[str]]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(set)))
 
 
 

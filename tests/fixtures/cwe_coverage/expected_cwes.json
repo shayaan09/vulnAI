@@ -1,0 +1,15 @@
+{
+  "expected_cwes": {
+    "CWE-22": "Path Traversal",
+    "CWE-78": "Command Injection",
+    "CWE-79": "Cross-site Scripting",
+    "CWE-89": "SQL Injection",
+    "CWE-327": "Weak Cryptography",
+    "CWE-338": "Insecure Random",
+    "CWE-502": "Insecure Deserialization",
+    "CWE-611": "XML External Entity Injection",
+    "CWE-798": "Hardcoded Secrets",
+    "CWE-918": "Server-Side Request Forgery"
+  }
+}
+

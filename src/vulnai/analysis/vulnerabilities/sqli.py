@@ -9,11 +9,16 @@ SQLI_CORE_WEB_SOURCES = [
     "request.args",
     "request.args.get",
     "request.args.getlist",
+   
+    "request.args.keys",
     "request.form",
     "request.form.get",
     "request.form.getlist",
+    "request.form.keys",
     "request.values",
     "request.values.get",
+    "request.values.getlist",
+    "request.values.keys",
     "request.json",
     "request.get_json",
     "request.data",
@@ -22,22 +27,30 @@ SQLI_CORE_WEB_SOURCES = [
     "request.files.get",
     "request.cookies",
     "request.cookies.get",
+    "request.cookies.getlist",
+    "request.cookies.keys",
     "request.headers",
     "request.headers.get",
+    "request.headers.getlist",
+    "request.headers.keys",
     "request.view_args",
 
     # Django
     "request.GET",
     "request.GET.get",
     "request.GET.getlist",
+    "request.GET.keys",
     "request.POST",
     "request.POST.get",
     "request.POST.getlist",
+    "request.POST.keys",
     "request.body",
     "request.COOKIES",
     "request.COOKIES.get",
+    "request.COOKIES.keys",
     "request.headers",
     "request.headers.get",
+    "request.headers.keys",
     "request.META",
     "request.META.get",
     "request.FILES",
@@ -77,6 +90,13 @@ SQLI_CORE_WEB_SOURCES = [
     "pydantic.BaseModel.field",
     "pydantic_model_attribute",
     "request_body_model_attribute",
+
+    # Common project wrappers, including OWASP Benchmark helpers.
+    # These return request-controlled values behind non-framework method names.
+    "get_query_parameter",
+    "get_form_parameter",
+    "get_cookie_parameter",
+    "get_header_parameter",
 ]
 
 

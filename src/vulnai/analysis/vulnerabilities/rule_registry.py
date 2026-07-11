@@ -1,5 +1,6 @@
 from collections import defaultdict
 from vulnai.analysis.vulnerabilities.vulns import VulnerabilityRule
+from fnmatch import fnmatchcase
 
 class RuleRegistry:
     def __init__(self, rules: list[VulnerabilityRule]):
@@ -18,7 +19,7 @@ class RuleRegistry:
 
     #Populates the maps
     def populateMaps(self) -> None:
-        for rule in self.taintRules:
+        for rule in self.taintRules + self.patternRules:
 
             #A rule's identifier for multi-taint tracking will be its CWE ID
             cweId = rule.cwe
@@ -33,15 +34,39 @@ class RuleRegistry:
                 self.sanitizerToCwes[sanitizer].add(cweId)
 
 
+    #table is either sourceToCwes, sinkToCwes, or sanitizerToCwes
+    def _lookup(self, table: dict[str, set[str]], name: str | None) -> set[str]:
+            if not name:
+                return set()
+            
+            #Exact matching to the src/sink/sanitizer list. This is the exact dictionairy lookup
+            hits = set(table.get(name, set()))
+
+            for pattern, cwes in table.items():
+                if pattern == name:
+                    continue
+                
+                #wildcard rule match
+                if "*" in pattern and fnmatchcase(name, pattern):
+                    hits.update(cwes)
+
+                #Allows rules like "execute" to match "cursor.execute". Basically a suffix match lol
+                elif "." not in pattern and name.endswith("." + pattern):
+                    hits.update(cwes)
+
+            return hits
+    
+
+
     def getSourceCwes(self, name: str) -> set[str]:
-        return self.sourceToCwes.get(name, set())
+        return self._lookup(self.sourceToCwes, name)
 
     def getSinkCwes(self, name: str) -> set[str]:
-        return self.sinkToCwes.get(name, set())
+        return self._lookup(self.sinkToCwes, name)
 
     def getSanitizerCwes(self, name: str) -> set[str]:
-        return self.sanitizerToCwes.get(name, set())
+        return self._lookup(self.sanitizerToCwes, name)
 
     #Checks if the name we're processing is in any of our lists
     def isTrackedAnywhere(self, name: str) -> bool:
-        return name in self.sourceToCwes or name in self.sinkToCwes or name in self.sanitizerToCwes
+        return bool(self.sourceToCwes or name in self.sinkToCwes or name in self.sanitizerToCwes)

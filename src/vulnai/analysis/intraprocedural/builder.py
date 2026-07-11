@@ -42,8 +42,6 @@ class Builder:
                 # #print(f"[BLOCK {block.id}] -> [BLOCK {ifTrue.id}]")
                 trueEnd = self.recursiveStmtBuild(currentCfg, statement.body, ifTrue)
 
-
-                
                 ifFalse = currentCfg.blockBuild()
                 currentCfg.blockConnector(block, ifFalse)
                
@@ -90,6 +88,99 @@ class Builder:
                 block.statements.append(statement)
                 currentCfg.blockConnector(block, currentCfg.exitBlock)
                 break
+
+            elif isinstance(statement, ast.Try):
+                tryBlock = currentCfg.blockBuild()
+                currentCfg.blockConnector(block, tryBlock)
+
+                tryEnd = self.recursiveStmtBuild(currentCfg, statement.body, tryBlock)
+
+                branchEnds = []
+
+                if statement.orelse:
+                    elseBlock = currentCfg.blockBuild()
+                    currentCfg.blockConnector(tryEnd, elseBlock)
+                    elseEnd = self.recursiveStmtBuild(currentCfg, statement.orelse, elseBlock)
+                    branchEnds.append(elseEnd)
+                else:
+                    branchEnds.append(tryEnd)
+
+                for handler in statement.handlers:
+                    handlerBlock = currentCfg.blockBuild()
+                    currentCfg.blockConnector(tryBlock, handlerBlock)
+
+                    handlerEnd = self.recursiveStmtBuild(
+                        currentCfg,
+                        handler.body,
+                        handlerBlock,
+                    )
+                    branchEnds.append(handlerEnd)
+
+                joinBlock = currentCfg.blockBuild()
+
+                for branchEnd in branchEnds:
+                    currentCfg.blockConnector(branchEnd, joinBlock)
+
+                if statement.finalbody:
+                    block = self.recursiveStmtBuild(currentCfg, statement.finalbody, joinBlock)
+                else:
+                    block = joinBlock
+
+            elif isinstance(statement, ast.Match):
+                # NOTE: NEW - Adds Python match/case branches to the CFG.
+                # This keeps tainted assignments inside case bodies visible to RDA/UDA.
+                block.statements.append(statement.subject)
+                branchEnds = []
+
+                for case in statement.cases:
+                    caseBlock = currentCfg.blockBuild()
+                    currentCfg.blockConnector(block, caseBlock)
+
+                    if case.guard:
+                        caseBlock.statements.append(case.guard)
+
+                    caseEnd = self.recursiveStmtBuild(currentCfg, case.body, caseBlock)
+                    branchEnds.append(caseEnd)
+
+                joinBlock = currentCfg.blockBuild()
+
+                if not branchEnds:
+                    currentCfg.blockConnector(block, joinBlock)
+
+                for branchEnd in branchEnds:
+                    currentCfg.blockConnector(branchEnd, joinBlock)
+
+                block = joinBlock
+
+            elif isinstance(statement, (ast.With, ast.AsyncWith)):
+                # NOTE: NEW - Adds with/async with bodies without duplicating nested body AST.
+                # A shallow with node preserves context-manager defs like "as f".
+                withBlock = currentCfg.blockBuild()
+                currentCfg.blockConnector(block, withBlock)
+
+                if isinstance(statement, ast.AsyncWith):
+                    shallowWith = ast.AsyncWith(
+                        items=statement.items,
+                        body=[],
+                        type_comment=getattr(statement, "type_comment", None),
+                    )
+                else:
+                    shallowWith = ast.With(
+                        items=statement.items,
+                        body=[],
+                        type_comment=getattr(statement, "type_comment", None),
+                    )
+
+                ast.copy_location(shallowWith, statement)
+                withBlock.statements.append(shallowWith)
+
+                bodyBlock = currentCfg.blockBuild()
+                currentCfg.blockConnector(withBlock, bodyBlock)
+                bodyEnd = self.recursiveStmtBuild(currentCfg, statement.body, bodyBlock)
+
+                joinBlock = currentCfg.blockBuild()
+                currentCfg.blockConnector(bodyEnd, joinBlock)
+                block = joinBlock
             
         
         return block

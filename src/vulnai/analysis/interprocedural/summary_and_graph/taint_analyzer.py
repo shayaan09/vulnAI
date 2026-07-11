@@ -2,7 +2,7 @@ import ast
 from collections import defaultdict
 from vulnai.analysis.interprocedural.code_graph.graph import CodeGraph
 from vulnai.analysis.interprocedural.summary_and_graph.summarystore import SummaryStore
-
+from vulnai.analysis.vulnerabilities.rule_registry import RuleRegistry
 
 #Walks the call graph edges, checks the summaries, and traces cross-file vulnerabilities
 #Argument: What the caller function CALLS. execute(user), use is the argument
@@ -34,23 +34,170 @@ class InterproceduralTaintAnalyzer:
 
     #functionParamMap: func names -> a list of their params
     #functionAstMap is tracking raw AST node bodies of functions so it can run localized scans when needed
-    def __init__(self, store: SummaryStore, functionParamMap: dict[str, list[str]], functionAstMap: dict[str, ast.FunctionDef]):
-        self.store = store
-        self.functionParamMap = functionParamMap
-        self.functionAstMap = functionAstMap
-        
+    def __init__(self, store: SummaryStore, functionParamMap: dict[str, list[str]], functionAstMap: dict[str, ast.FunctionDef], registry: RuleRegistry | None):
+        self.store = store #contains all func summaries
+        self.functionParamMap = functionParamMap #func name -> params
+        self.functionAstMap = functionAstMap #func name -> AST node
+        self.registry = registry
+
         #(function name, context id) -> varName -> set of active CWE ids
         self.localTaintScopes: dict[tuple[str, int], dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
         
         #function names -> a set of their currently active context IDs
         self.activeContexts: dict[str, set[int]] = defaultdict(set)
         self.contextInit()
+        self.seedBaseContextsFromSummaries()
+
+        #(functionName, contextId) -> earliest line where returned taint entered that function context
+        self.contextsNeedingSinkReplay: dict[tuple[str, int], int] = {}
 
 
     #Inits all known functions with a base root context id (which is 0)
     def contextInit(self) -> None:
         for funcName in self.functionParamMap.keys():
             self.activeContexts[funcName].add(0)
+
+    #takes local source facts discovered by FunctionSummaryBuilder and loads them into the interprocedural analyzer
+    def seedBaseContextsFromSummaries(self) -> None:
+        for summary in self.store._store.values():
+            scope = self.localTaintScopes[(summary.functionName, 0)]
+            for varName, cwes in getattr(summary, "localSourceVars", {}).items():
+                scope[varName].update(cwes)
+
+
+    def recursiveGetter(self, node: ast.AST) -> str | None:
+        if isinstance(node, ast.Name):
+            return node.id
+        
+        elif isinstance(node, ast.Call):
+                return self.recursiveGetter(node.func)
+        if isinstance(node, ast.Attribute):
+            prefix = self.recursiveGetter(node.value)
+            return f"{prefix}.{node.attr}" if prefix else node.attr
+        return None
+
+    #Normalizes subscript keys to match FunctionSummaryBuilder.
+    def subscriptKey(self, node: ast.AST | None) -> str | None:
+       
+        if node is None:
+            return None
+
+        if isinstance(node, ast.Constant):
+            return repr(node.value)
+
+        try:
+            return ast.unparse(node).strip()
+        except Exception:
+            return None
+
+    #Builds stable names for replay-time access-path lookups.
+    def accessPath(self, node: ast.AST | None) -> str | None:
+      
+        if node is None:
+            return None
+
+        if isinstance(node, ast.Name):
+            return node.id
+
+        if isinstance(node, ast.Attribute):
+            prefix = self.accessPath(node.value)
+            return f"{prefix}.{node.attr}" if prefix else node.attr
+
+        if isinstance(node, ast.Subscript):
+            base = self.accessPath(node.value)
+            key = self.subscriptKey(node.slice)
+
+            if base and key:
+                return f"{base}[{key}]"
+
+        return None
+
+
+    def getCallName(self, callNode: ast.Call) -> str | None:
+        return self.recursiveGetter(callNode.func)
+
+    # Keeps replay-time SQLi focused on the SQL/query expression.
+    # Bound parameters should not be treated as injected SQL text.
+    def relevantSinkArgs(self, callNode: ast.Call, sinkName: str, sinkCwes: set[str]) -> list[ast.AST]:
+        if "CWE-89" in sinkCwes and (
+            sinkName.endswith(".execute")
+            or sinkName.endswith(".executemany")
+            or sinkName in {"execute", "executemany", "executescript"}
+        ):
+            relevantArgs = []
+
+            if callNode.args:
+                relevantArgs.append(callNode.args[0])
+
+            for kw in callNode.keywords:
+                if kw.arg in {"sql", "query", "statement"}:
+                    relevantArgs.append(kw.value)
+
+            return relevantArgs
+
+        argsToCheck = list(callNode.args) + [kw.value for kw in callNode.keywords]
+
+        if isinstance(callNode.func, ast.Attribute):
+            argsToCheck.append(callNode.func.value)
+
+        return argsToCheck
+
+    # Finds parser variables that explicitly enable XML externals.
+    # Replay can then suppress parseString(..., safe_parser) XXE false positives.
+    def unsafeXmlParsersInFunction(self, funcAst: ast.AST) -> set[str]:
+        unsafeParsers = set()
+
+        for node in ast.walk(funcAst):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+
+            if node.func.attr != "setFeature" or len(node.args) < 2:
+                continue
+
+            enabledArg = node.args[1]
+            if not (isinstance(enabledArg, ast.Constant) and enabledArg.value is True):
+                continue
+
+            featureText = ast.unparse(node.args[0]).lower()
+            if "external" not in featureText:
+                continue
+
+            parserName = self.accessPath(node.func.value)
+            if parserName:
+                unsafeParsers.add(parserName)
+
+        return unsafeParsers
+
+    #  Applies safe XML/YAML sink shapes during replay.
+    def refineReplaySinkCwes(self, callNode: ast.Call, sinkName: str | None, sinkCwes: set[str], funcAst: ast.AST) -> set[str]:
+        refined = set(sinkCwes)
+
+        if not sinkName:
+            return refined
+
+        if "CWE-611" in refined and sinkName in {"xml.dom.minidom.parseString", "parseString"} and len(callNode.args) >= 2:
+            parserName = self.accessPath(callNode.args[1])
+            unsafeParsers = self.unsafeXmlParsersInFunction(funcAst)
+
+            if parserName and parserName not in unsafeParsers:
+                refined.discard("CWE-611")
+
+        if "CWE-502" in refined and sinkName in {"yaml.safe_load", "safe_load"}:
+            refined.discard("CWE-502")
+
+        if "CWE-502" in refined and sinkName in {"yaml.load", "ruamel.yaml.YAML.load", "load"}:
+            for kw in callNode.keywords:
+                if kw.arg == "Loader":
+                    loaderName = self.accessPath(kw.value) or self.recursiveGetter(kw.value) or ""
+                    if loaderName.endswith("SafeLoader") or loaderName.endswith("CSafeLoader"):
+                        refined.discard("CWE-502")
+
+            if len(callNode.args) >= 2:
+                loaderName = self.accessPath(callNode.args[1]) or self.recursiveGetter(callNode.args[1]) or ""
+                if loaderName.endswith("SafeLoader") or loaderName.endswith("CSafeLoader"):
+                    refined.discard("CWE-502")
+
+        return refined
 
 
     #Scans a caller func's AST to see exactly which local var got assigned a funct call's return value
@@ -77,12 +224,16 @@ class InterproceduralTaintAnalyzer:
                             return node.targets[0].id
         return None
 
-
+    #extracts variable names from assignment targets
     def extractAssignedNames(self, target: ast.AST) -> set[str]:
         assignedNames = set()
 
-        if isinstance(target, ast.Name):
-            assignedNames.add(target.id)
+        #Return captures can land in access paths
+        #Example: holder.value = helper() records holder.value, not just names
+        targetPath = self.accessPath(target)
+
+        if targetPath:
+            assignedNames.add(targetPath)
 
         elif isinstance(target, (ast.Tuple, ast.List)):
             for elt in target.elts:
@@ -91,6 +242,7 @@ class InterproceduralTaintAnalyzer:
         return assignedNames
 
 
+    #answers: Given a function call, which variable or variables receive the return value of that call
     def getAssignedVarsFromParentStmt(self, callNode: ast.Call, parentStmt: ast.stmt | None) -> set[str]:
         if not parentStmt:
             return set()
@@ -131,6 +283,214 @@ class InterproceduralTaintAnalyzer:
 
         return set()
 
+
+    #Given an expression and the current caller scope, what CWE taint labels does this expression carry?
+    #scope is: expr -> set of cews it may have
+    def evaluateExpressionCwes(self, node: ast.AST | None, scope: dict[str, set[str]]) -> set[str]:
+        if node is None:
+            return set()
+
+        if isinstance(node, ast.Name):
+            # Names can inherit container-wide taint from name[*].
+            # This supports list append/pop/join flows during replay.
+            cwes = set(scope.get(node.id, set()))
+            cwes.update(scope.get(f"{node.id}[*]", set()))
+            return cwes
+
+        if isinstance(node, ast.Constant):
+            return set()
+
+        cwes = set()
+
+        if isinstance(node, ast.Call):
+            callName = self.getCallName(node)
+
+            argsToCheck = list(node.args) + [kw.value for kw in node.keywords] #gathers positional and keyword argument exprs
+            if isinstance(node.func, ast.Attribute):
+                argsToCheck.append(node.func.value)
+
+            for child in argsToCheck:
+                cwes.update(self.evaluateExpressionCwes(child, scope))
+
+            #If the call is a sanitizer, remove those CWE labels
+            if self.registry and callName:
+                sanitizerCwes = self.registry.getSanitizerCwes(callName)
+                if sanitizerCwes:
+                    cwes -= sanitizerCwes
+
+                sourceCwes = self.registry.getSourceCwes(callName)
+                cwes.update(sourceCwes)
+
+            return cwes
+
+        if isinstance(node, ast.Subscript):
+
+            #Replays taint through subscript reads
+            #This reads scope facts exported as data['key'] by summaries
+            fullName = self.accessPath(node)
+
+            if fullName:
+                cwes.update(scope.get(fullName, set()))
+                # Subscript reads fall back to container-wide taint.
+                # This mirrors FunctionSummaryBuilder.loadSymbolTaint().
+                cwes.update(scope.get(fullName.split("[", 1)[0] + "[*]", set()))
+
+            cwes.update(self.evaluateExpressionCwes(node.value, scope))
+            return cwes
+
+        if isinstance(node, ast.Attribute):
+
+            #Attribute replay uses accessPath-compatible names.
+            #This keeps holder.value aligned with summary localSourceVars
+            fullName = self.accessPath(node)
+
+            if fullName:
+                cwes.update(scope.get(fullName, set()))
+
+                if self.registry:
+                    sanitizerCwes = self.registry.getSanitizerCwes(fullName)
+                    if sanitizerCwes:
+                        cwes -= sanitizerCwes
+
+                    sourceCwes = self.registry.getSourceCwes(fullName)
+                    cwes.update(sourceCwes)
+
+            cwes.update(self.evaluateExpressionCwes(node.value, scope))
+            return cwes
+        
+
+        #If the expr is not a simple name, constant, call, or attribute, this recursively explores its fields
+        for _, value in ast.iter_fields(node):
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, ast.AST):
+                        cwes.update(self.evaluateExpressionCwes(item, scope))
+            elif isinstance(value, ast.AST):
+                cwes.update(self.evaluateExpressionCwes(value, scope))
+
+        return cwes
+
+
+    #maps call arguments to callee parameters with taint labels
+    def bindArgumentCwes(self, callNode: ast.Call, calleeParamNames: list[str], currentCallerScope: dict[str, set[str]]) -> dict[str, set[str]]:
+        bound = defaultdict(set) #param name -> set of cwe ids
+
+        for argPos, argNode in enumerate(callNode.args):
+            if argPos < len(calleeParamNames):
+                paramName = calleeParamNames[argPos]
+            elif calleeParamNames:
+                paramName = calleeParamNames[-1]
+            else:
+                continue
+
+            bound[paramName].update(self.evaluateExpressionCwes(argNode, currentCallerScope))
+
+        for kw in callNode.keywords:
+            if kw.arg and kw.arg in calleeParamNames:
+                bound[kw.arg].update(self.evaluateExpressionCwes(kw.value, currentCallerScope))
+            elif kw.arg is None and calleeParamNames:
+                bound[calleeParamNames[-1]].update(self.evaluateExpressionCwes(kw.value, currentCallerScope))
+
+        return bound
+
+    #returns all ast.Call nodes that belong to the current function body but not nested functions/classes/lambdas
+    def iterCallsInCurrentFunction(self, funcNode: ast.AST) -> list[ast.Call]:
+        calls: list[ast.Call] = []
+
+        class Visitor(ast.NodeVisitor):
+            def __init__(self, root):
+                self.root = root
+
+            #If the function definition is the root function, walk inside it otherwise skip
+            def visit_FunctionDef(self, node):
+                if node is self.root:
+                    self.generic_visit(node)
+
+            #If the async function definition is the root function, walk inside it otherwise skip
+            def visit_AsyncFunctionDef(self, node):
+                if node is self.root:
+                    self.generic_visit(node)
+
+            #When reaching a class definition, do not walk into its children
+            def visit_ClassDef(self, node):
+                return
+
+            def visit_Lambda(self, node):
+                return
+
+            def visit_Call(self, node):
+                calls.append(node)
+                self.generic_visit(node)
+
+        Visitor(funcNode).visit(funcNode)
+        return calls
+
+    def replayLocalSinksAfterInterproceduralTaint(self, reported: set) -> list[dict]:
+        vulnerabilities = []
+
+        if not self.registry:
+            return vulnerabilities
+
+        for (funcName, ctxID), minLine in self.contextsNeedingSinkReplay.items():
+            funcAst = self.functionAstMap.get(funcName)
+
+            if not funcAst:
+                continue
+
+            currentScope = self.localTaintScopes[(funcName, ctxID)]
+
+            if not currentScope:
+                continue
+
+            for callNode in self.iterCallsInCurrentFunction(funcAst):
+                callLine = getattr(callNode, "lineno", 0)
+
+                if callLine and minLine and callLine < minLine:
+                    continue
+
+                callName = self.getCallName(callNode)
+                sinkCwes = self.registry.getSinkCwes(callName)
+                sinkCwes = self.refineReplaySinkCwes(callNode, callName, sinkCwes, funcAst)
+
+                if not callName or not sinkCwes:
+                    continue
+
+                # Replay uses CWE-aware relevant sink args.
+                # This keeps interprocedural SQL params from becoming false positives.
+                argsToCheck = self.relevantSinkArgs(callNode, callName, sinkCwes)
+
+                for argNode in argsToCheck:
+                    activeCwes = self.evaluateExpressionCwes(argNode, currentScope) & sinkCwes
+
+                    for cwe in activeCwes:
+                        sig = (
+                            "INTERPROCEDURAL_REPLAY",
+                            funcName,
+                            ctxID,
+                            cwe,
+                            callName,
+                            callLine,
+                            ast.unparse(argNode).strip(),
+                        )
+
+                        if sig in reported:
+                            continue
+
+                        reported.add(sig)
+                        vulnerabilities.append({
+                            "vulnerability": "Interprocedural Returned Taint-To-Sink Flow",
+                            "cwe": cwe,
+                            "caller": funcName,
+                            "callee": funcName,
+                            "viaParameter": "Returned/Propagated Local Value",
+                            "sinkReached": callName,
+                            "line": callLine,
+                            "contextId": f"interprocedural_replay_{ctxID}",
+                        })
+
+        return vulnerabilities
+
+    #runs the global fixed-point taint propagation over the call graph
     def analyze(self, graph: CodeGraph) -> list[dict]:
         vulnerabilities = [] #stores final report
         reported = set() #stores bugs, tuple: (caller, callerCtx, callee, calleeCtx, param, cwe, sink, line)
@@ -151,7 +511,7 @@ class InterproceduralTaintAnalyzer:
                 callerFunc = callSiteInfo.callerFunc  
                 calleeFunc = callSiteInfo.calleeFunc  
                 callNode = callSiteInfo.node   
-                     
+                    
                 
                 summary = self.store.getSummary(calleeFunc)
                 if not summary:
@@ -165,32 +525,29 @@ class InterproceduralTaintAnalyzer:
                 #Iterate through all live contexts currently driving the caller function
                 for callerCtxID in list(self.activeContexts[callerFunc]):
                     currentCallerScope = self.localTaintScopes[(callerFunc, callerCtxID)] #extrcat the state of every var at this specific context of caller
+                    boundArgs = self.bindArgumentCwes(callNode, calleeParamNames, currentCallerScope)
 
                     #PASS 1: Shifting taint from caller args to callee params
                     #This pass handles ENTERING a function. It checks the variables passing INTO a val
-                    for argPos, argNode in enumerate(callNode.args):
+                    for paramName, activeArgumentCwes in boundArgs.items():
 
                         #Verifies that the caller isn't passing more positional args than the func's definition supports
                         #If it matches a valid index, it maps that index straight to the param string name (paramName)
-                        if argPos < len(calleeParamNames):
-                            paramName = calleeParamNames[argPos]
+                        if not activeArgumentCwes:
+                            continue
                             
-                            #Check taint status inside the caller's execution context
-                            if isinstance(argNode, ast.Name) and argNode.id in currentCallerScope:
-                                activeArgumentCwes = currentCallerScope[argNode.id]
-                                
-                                if activeArgumentCwes:
-                                    currentCalleeScope = self.localTaintScopes[(calleeFunc, calleeCtxID)]
-                                    oldLen = len(currentCalleeScope[paramName])
-                                    
-                                    #Forward only the matching CWE labels across the boundary
-                                    currentCalleeScope[paramName].update(activeArgumentCwes)
-                                    
-                                    #Checks if this pass actually introduced a new unseen vuln label to that param
-                                    #If the set size increases, it means a new threat has entered into the callee function
-                                    if len(currentCalleeScope[paramName]) > oldLen:
-                                        self.activeContexts[calleeFunc].add(calleeCtxID)
-                                        changed = True
+                        #Check taint status inside the caller's execution context
+                        currentCalleeScope = self.localTaintScopes[(calleeFunc, calleeCtxID)]
+                        oldLen = len(currentCalleeScope[paramName])
+                        
+                        #Forward only the matching CWE labels across the boundary
+                        currentCalleeScope[paramName].update(activeArgumentCwes)
+                        
+                        #Checks if this pass actually introduced a new unseen vuln label to that param
+                        #If the set size increases, it means a new threat has entered into the callee function
+                        if len(currentCalleeScope[paramName]) > oldLen:
+                            self.activeContexts[calleeFunc].add(calleeCtxID)
+                            changed = True
 
 
                     #PASS 2: Pulling return taint from callee back to caller var
@@ -203,7 +560,7 @@ class InterproceduralTaintAnalyzer:
                     parentStmt = getattr(callSiteInfo, "parentStmt", None)
                     assignedVars = self.getAssignedVarsFromParentStmt(callNode, parentStmt)
 
-                    if not assignedVars and parentStmt is None:
+                    if not assignedVars and parentStmt is None and hasattr(self, "getAssignedVar"):
                         fallbackAssignedVar = self.getAssignedVar(callNode, callerFunc)
 
                         if fallbackAssignedVar:
@@ -232,6 +589,12 @@ class InterproceduralTaintAnalyzer:
                                 currentCallerScope[assignedVar].update(inheritedReturnCwes)
 
                                 if len(currentCallerScope[assignedVar]) > oldLen:
+                                    replayKey = (callerFunc, callerCtxID)
+                                    oldReplayLine = self.contextsNeedingSinkReplay.get(replayKey)
+
+                                    if oldReplayLine is None or lineno < oldReplayLine:
+                                        self.contextsNeedingSinkReplay[replayKey] = lineno
+
                                     changed = True
 
 
@@ -264,7 +627,10 @@ class InterproceduralTaintAnalyzer:
                                                 "contextId": f"callsiteLine_{calleeCtxID}"
                                             })
 
+        for bug in self.replayLocalSinksAfterInterproceduralTaint(reported):
+            vulnerabilities.append(bug)
 
+        
         #Since pattern matches and local taints dont flow across files
         #we just pull them straight out of Phase 1
         for summary in self.store._store.values():
@@ -273,7 +639,8 @@ class InterproceduralTaintAnalyzer:
             if hasattr(summary, 'bannedPatterns') and summary.bannedPatterns:
 
                 for bug in summary.bannedPatterns:
-                    patternSig = ("PATTERN_MATCH", summary.functionName, bug["cwe"], bug["line"], bug["offendingCode"])
+                    offendingCode = bug.get("offendingCode", bug.get("sink", ""))
+                    patternSig = ("PATTERN_MATCH", summary.functionName, bug["cwe"], bug["line"], offendingCode)
                     
                     if patternSig not in reported:
                         reported.add(patternSig)
@@ -283,7 +650,7 @@ class InterproceduralTaintAnalyzer:
                             "caller": "N/A (Static Pattern)",
                             "callee": summary.functionName,
                             "viaParameter": "None",
-                            "sinkReached": bug["offendingCode"],
+                            "sinkReached": offendingCode,
                             "line": bug["line"],
                             "contextId": "global_pattern_match"
                         })

@@ -47,6 +47,9 @@ class CallGraphBuilder:
             if isinstance(node, ast.Name):
                 return node.id
             
+            elif isinstance(node, ast.Call):
+                return self.recursiveGetter(node.func)
+            
             elif isinstance(node, ast.Attribute):
 
                 prefix = self.recursiveGetter(node.value)
@@ -70,6 +73,40 @@ class CallGraphBuilder:
         except Exception:
             return "unknown_call"
 
+
+    #returns all ast.Call nodes that belong to the current function body but not nested functions/classes/lambdas
+    def iterCallsInCurrentFunction(self, funcNode: ast.AST) -> list[ast.Call]:
+        calls: list[ast.Call] = []
+
+        class Visitor(ast.NodeVisitor):
+            def __init__(self, root):
+                self.root = root
+
+            #If the function definition is the root function, walk inside it otherwise skip
+            def visit_FunctionDef(self, node):
+                if node is self.root:
+                    self.generic_visit(node)
+
+            #If the async function definition is the root function, walk inside it otherwise skip
+            def visit_AsyncFunctionDef(self, node):
+                if node is self.root:
+                    self.generic_visit(node)
+
+            #When reaching a class definition, do not walk into its children
+            def visit_ClassDef(self, node):
+                return
+
+            def visit_Lambda(self, node):
+                return
+
+            def visit_Call(self, node):
+                calls.append(node)
+                self.generic_visit(node)
+
+        Visitor(funcNode).visit(funcNode)
+        return calls
+
+
     def build(self, graph: CodeGraph) -> None:
         for moduleName, modInfo in self.index.modules.items():
             for funcName, funcData in modInfo.functions.items():
@@ -78,7 +115,7 @@ class CallGraphBuilder:
                 #parent lookup once for this function
                 parentMap = self.buildParentMap(funcData.node)
 
-                for node in ast.walk(funcData.node):
+                for node in self.iterCallsInCurrentFunction(funcData.node):
                     if isinstance(node, ast.Call):
                         
                         #Passes full execution context (Module + Current Function Container)

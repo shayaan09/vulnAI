@@ -22,6 +22,26 @@ XXE_SOURCES = [
     "request.files.get",
     "request.form",
     "request.form.get",
+    "request.form.getlist",
+    
+    "request.form.keys",
+    "request.args",
+    "request.args.get",
+    "request.args.getlist",
+    "request.args.keys",
+    "request.values",
+    "request.values.get",
+    "request.values.getlist",
+    "request.values.keys",
+    "request.cookies",
+    "request.cookies.get",
+    "request.cookies.getlist",
+    "request.cookies.keys",
+    "request.headers",
+    "request.headers.get",
+    "request.headers.getlist",
+    "request.headers.keys",
+    "request.query_string",
 
     # Django request input
     "request.body",
@@ -29,6 +49,15 @@ XXE_SOURCES = [
     "request.FILES",
     "request.POST",
     "request.POST.get",
+    "request.POST.getlist",
+    "request.POST.keys",
+    "request.GET",
+    "request.GET.get",
+    "request.GET.getlist",
+    "request.GET.keys",
+    "request.COOKIES",
+    "request.COOKIES.get",
+    "request.COOKIES.keys",
 
     # FastAPI / Starlette request input
     "Request.body",
@@ -36,15 +65,18 @@ XXE_SOURCES = [
     "Request.form",
     "UploadFile.read",
 
-    # CLI / file / env input
+    # CLI / env input
     "sys.argv",
     "input",
-    "open",
-    "Path.read_text",
-    "Path.read_bytes",
     "os.environ",
     "os.environ.get",
     "os.getenv",
+
+    # Common project wrappers, including OWASP Benchmark Python helpers.
+    "get_query_parameter",
+    "get_form_parameter",
+    "get_cookie_parameter",
+    "get_header_parameter",
 
     # Network/socket input
     "socket.recv",

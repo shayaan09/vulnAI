@@ -15,30 +15,47 @@ COMMAND_INJECTION_SOURCES = [
     # Flask request input
     "request.args",
     "request.args.get",
+
+    "request.args.getlist",
+    "request.args.keys",
     "request.form",
     "request.form.get",
+    "request.form.getlist",
+    "request.form.keys",
     "request.values",
     "request.values.get",
+    "request.values.getlist",
+    "request.values.keys",
     "request.json",
     "request.get_json",
     "request.data",
     "request.files",
     "request.cookies",
     "request.cookies.get",
+    "request.cookies.getlist",
+    "request.cookies.keys",
     "request.headers",
     "request.headers.get",
+    "request.headers.getlist",
+    "request.headers.keys",
 
     # Django request input
     "request.GET",
     "request.GET.get",
+    "request.GET.getlist",
+    "request.GET.keys",
     "request.POST",
     "request.POST.get",
+    "request.POST.getlist",
+    "request.POST.keys",
     "request.body",
     "request.FILES",
     "request.COOKIES",
     "request.COOKIES.get",
+    "request.COOKIES.keys",
     "request.headers",
     "request.headers.get",
+    "request.headers.keys",
     "request.META",
     "request.META.get",
 
@@ -76,6 +93,11 @@ COMMAND_INJECTION_SOURCES = [
 
     # Generic input
     "input",
+
+    "get_query_parameter",
+    "get_form_parameter",
+    "get_cookie_parameter",
+    "get_header_parameter",
 ]
 
 

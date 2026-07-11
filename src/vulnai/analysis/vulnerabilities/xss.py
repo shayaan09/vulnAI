@@ -12,17 +12,26 @@ XSS_FLASK_SOURCES = [
     # Query string: /search?q=hello
     "request.args",
     "request.args.get",
+    "request.args.getlist",
     "request.args.__getitem__",
+    # NOTE: NEW - Raw query strings and request map keys are attacker-controlled.
+    # Route-return evidence decides later whether they are actual XSS.
+    "request.args.keys",
+    "request.query_string",
 
     # Form body: POST form fields
     "request.form",
     "request.form.get",
+    "request.form.getlist",
     "request.form.__getitem__",
+    "request.form.keys",
 
     # Combined args + form
     "request.values",
     "request.values.get",
+    "request.values.getlist",
     "request.values.__getitem__",
+    "request.values.keys",
 
     # JSON body
     "request.json",
@@ -35,18 +44,28 @@ XSS_FLASK_SOURCES = [
     # Cookies
     "request.cookies",
     "request.cookies.get",
+    "request.cookies.getlist",
     "request.cookies.__getitem__",
+    "request.cookies.keys",
 
     # Headers
     "request.headers",
     "request.headers.get",
+    "request.headers.getlist",
     "request.headers.__getitem__",
+    "request.headers.keys",
 
     # Uploaded files / filenames
     "request.files",
     "request.files.get",
     "file.filename",
     "FileStorage.filename",
+
+    # Common project wrappers, including OWASP Benchmark Python helpers.
+    "get_query_parameter",
+    "get_form_parameter",
+    "get_cookie_parameter",
+    "get_header_parameter",
 ]
 
 XSS_DJANGO_SOURCES = [
@@ -396,6 +415,11 @@ XSS_HTML_ESCAPE_SANITIZERS = [
     "html.escape",
     "escape",
 
+    # OWASP Benchmark and many apps wrap html.escape in helpers.
+    # Treat these as HTML text-context sanitizers for route-return precision.
+    "escape_for_html",
+    "helpers.utils.escape_for_html",
+
     "markupsafe.escape",
     "markupsafe.escape_silent",
 
@@ -522,7 +546,7 @@ XSS_SAFE_TEMPLATE_RENDERERS = [
 ]
 
 XSS_RULE = VulnerabilityRule(name="Cross-site Scripting",
-    cwe="CWE-78",
+    cwe="CWE-79",
     detectionType="taintFlow",
     sources=XSS_SOURCES,
     sinks=XSS_SINKS,

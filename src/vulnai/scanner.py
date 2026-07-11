@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from collections import Counter
 import traceback
+import ast
 from vulnai.analysis.intraprocedural.builder import Builder
 from vulnai.analysis.intraprocedural.reachingdef import ReachingDefinitionAnalyzer
 from vulnai.analysis.intraprocedural.usedef import UseDefAnalyzer
@@ -48,6 +49,122 @@ class Scanner:
             function_ast_map[global_name] = func_info.node
 
         return function_param_map, function_ast_map
+
+    # NOTE: NEW - Scans module/class scope for hardcoded secrets.
+    # Function summaries intentionally skip code outside functions.
+    def scan_module_level_patterns(self, codebase_index, registry: RuleRegistry) -> list[dict]:
+        findings: list[dict] = []
+        reported = set()
+        secret_rules = [rule for rule in registry.patternRules if rule.cwe == "CWE-798"]
+
+        if not secret_rules:
+            return findings
+
+        def matching_rules(name: str, literal: str):
+            loweredName = name.lower()
+
+            for rule in secret_rules:
+                nameMatched = any(loweredName == sink.lower() for sink in rule.sinks)
+                literalMatched = any(sink and sink in literal for sink in rule.sinks)
+
+                if nameMatched or literalMatched:
+                    yield rule
+
+        def target_names(target: ast.AST) -> list[str]:
+            if isinstance(target, ast.Name):
+                return [target.id]
+
+            if isinstance(target, ast.Attribute):
+                return [target.attr]
+
+            if isinstance(target, ast.Subscript):
+                try:
+                    return [ast.unparse(target.slice).strip().strip("'\"")]
+                except Exception:
+                    return []
+
+            if isinstance(target, (ast.Tuple, ast.List)):
+                names = []
+
+                for elt in target.elts:
+                    names.extend(target_names(elt))
+
+                return names
+
+            return []
+
+        def add_finding(module_name: str, file_path: str, rule, matched_name: str, literal: str, node: ast.AST) -> None:
+            sig = (module_name, rule.cwe, matched_name, getattr(node, "lineno", 0), literal)
+
+            if sig in reported:
+                return
+
+            reported.add(sig)
+            findings.append({
+                "vulnerability": f"Static Pattern Match: {rule.name}",
+                "cwe": rule.cwe,
+                "caller": "N/A (Static Pattern)",
+                "callee": module_name,
+                "viaParameter": "None",
+                "sinkReached": ast.unparse(node).strip(),
+                "line": getattr(node, "lineno", "Unknown"),
+                "contextId": "module_pattern_match",
+                "file": file_path,
+            })
+
+        class ModulePatternVisitor(ast.NodeVisitor):
+            # NOTE: NEW - Module/class pattern scan skips function bodies.
+            # Function-level findings are already handled by FunctionSummaryBuilder.
+            def __init__(self, module_name: str, file_path: str):
+                self.module_name = module_name
+                self.file_path = file_path
+
+            def visit_FunctionDef(self, node):
+                return
+
+            def visit_AsyncFunctionDef(self, node):
+                return
+
+            def visit_Lambda(self, node):
+                return
+
+            def visit_Assign(self, node):
+                self.check_assignment(node.targets, node.value, node)
+                self.generic_visit(node.value)
+
+            def visit_AnnAssign(self, node):
+                self.check_assignment([node.target], node.value, node)
+                if node.value:
+                    self.generic_visit(node.value)
+
+            def check_assignment(self, targets: list[ast.AST], value: ast.AST | None, node: ast.AST) -> None:
+                if isinstance(value, ast.Constant) and isinstance(value.value, str) and value.value.strip():
+                    for target in targets:
+                        for name in target_names(target):
+                            for rule in matching_rules(name, value.value):
+                                add_finding(self.module_name, self.file_path, rule, name, value.value, node)
+
+                if isinstance(value, ast.Dict):
+                    for key_node, value_node in zip(value.keys, value.values):
+                        if not (
+                            isinstance(key_node, ast.Constant)
+                            and isinstance(key_node.value, str)
+                            and isinstance(value_node, ast.Constant)
+                            and isinstance(value_node.value, str)
+                            and value_node.value.strip()
+                        ):
+                            continue
+
+                        for rule in matching_rules(key_node.value, value_node.value):
+                            add_finding(self.module_name, self.file_path, rule, key_node.value, value_node.value, node)
+
+        for module_name, module_info in codebase_index.modules.items():
+            if not module_info.astTree:
+                continue
+
+            ModulePatternVisitor(module_name, module_info.filePath).visit(module_info.astTree)
+
+        return findings
 
     def build_one_function_summary(self, func_info, registry, importAliasMap=None):
         """
@@ -200,9 +317,13 @@ class Scanner:
             store=summary_store,
             functionParamMap=function_param_map,
             functionAstMap=function_ast_map,
+            registry=registry,
         )
 
         vulnerabilities = taint_analyzer.analyze(graph)
+        # NOTE: NEW - Add non-function pattern findings after taint analysis.
+        # These findings do not participate in propagation; they are direct facts.
+        vulnerabilities.extend(self.scan_module_level_patterns(codebase_index, registry))
         result.vulnerabilities = vulnerabilities
 
         print("[+] Scan complete.")

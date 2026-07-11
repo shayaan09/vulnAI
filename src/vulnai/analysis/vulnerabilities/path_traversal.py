@@ -15,30 +15,47 @@ PATH_TRAVERSAL_SOURCES = [
     # Flask request input
     "request.args",
     "request.args.get",
+    "request.args.getlist",
+  
+    "request.args.keys",
     "request.form",
     "request.form.get",
+    "request.form.getlist",
+    "request.form.keys",
     "request.values",
     "request.values.get",
+    "request.values.getlist",
+    "request.values.keys",
     "request.json",
     "request.get_json",
     "request.files",
     "request.files.get",
     "request.cookies",
     "request.cookies.get",
+    "request.cookies.getlist",
+    "request.cookies.keys",
     "request.headers",
     "request.headers.get",
+    "request.headers.getlist",
+    "request.headers.keys",
 
     # Django request input
     "request.GET",
     "request.GET.get",
+    "request.GET.getlist",
+    "request.GET.keys",
     "request.POST",
     "request.POST.get",
+    "request.POST.getlist",
+    "request.POST.keys",
     "request.FILES",
     "request.COOKIES",
     "request.COOKIES.get",
+    "request.COOKIES.keys",
     "request.body",
     "request.headers",
     "request.headers.get",
+    "request.headers.keys",
 
     # FastAPI / Starlette request input
     "Request.query_params",
@@ -66,6 +83,12 @@ PATH_TRAVERSAL_SOURCES = [
     # Generic input
     "input",
 
+    # Common project wrappers, including OWASP Benchmark Python helpers.
+    "get_query_parameter",
+    "get_form_parameter",
+    "get_cookie_parameter",
+    "get_header_parameter",
+
     # Common user-controlled file metadata
     "file.filename",
     "uploaded_file.filename",
@@ -88,6 +111,9 @@ PATH_TRAVERSAL_SINKS = [
     "Path.replace",
     "Path.rmdir",
     "Path.mkdir",
+    "Path.exists",
+    "Path.is_file",
+    "Path.is_dir",
 
     # os file/path operations
     "os.open",
@@ -102,6 +128,9 @@ PATH_TRAVERSAL_SINKS = [
     "os.scandir",
     "os.walk",
     "os.stat",
+    "os.path.exists",
+    "os.path.isfile",
+    "os.path.isdir",
     "os.chmod",
     "os.chown",
 
@@ -127,6 +156,24 @@ PATH_TRAVERSAL_SINKS = [
     "zipfile.ZipFile.extractall",
     "tarfile.TarFile.extract",
     "tarfile.TarFile.extractall",
+    
+    "codecs.open",
+    "io.open",
+    "builtins.open",
+    "pathlib.Path.open",
+    "pathlib.Path.exists",
+    "pathlib.Path.is_file",
+    "pathlib.Path.is_dir",
+
+    # Suffix-style method names for cases where static type is unknown:
+    # p.exists(), p.is_file(), uploaded_path.read_text(), etc.
+    "exists",
+    "is_file",
+    "is_dir",
+    "read_text",
+    "read_bytes",
+    "write_text",
+    "write_bytes",
 ]
 
 

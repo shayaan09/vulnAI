@@ -118,49 +118,59 @@ class CodebaseIndexBuilder:
 
         return decorators
 
+    #Walk through a Python file and register EVERY SINGLE function, including functions nested inside functions and methods inside classes
+    def functionExtractor(self, tree: ast.Module, moduleName: str) -> dict[str, FunctionInfo]: #tree is the AST for one python file
+        functions: dict[str, FunctionInfo] = {} #key: func's qualified name
 
-    def functionExtractor(self, tree: ast.Module, moduleName: str) -> dict[str, FunctionInfo]:
-        functions = {}
+        #registers one func and then recursively checks if it contains more functions/classes
+        #qualParts: path to the function inside the file
+        #parentGlobal: parent’s full name
+        def register_func(node: ast.FunctionDef | ast.AsyncFunctionDef, qualParts: list[str], parentGlobal: str | None) -> None:
+            local_name = ".".join(qualParts)
+            global_name = f"{moduleName}.{local_name}"
+
+            info = FunctionInfo(
+                name=node.name,
+                globalName=global_name,
+                moduleName=moduleName,
+                node=node,
+                lineno=node.lineno,
+                endLineno=getattr(node, "end_lineno", node.lineno),
+                params=self.paramExtract(node),
+                decorators=self.decoratorExtract(node),
+                isAsync=isinstance(node, ast.AsyncFunctionDef),
+            )
+
+            #Dynamic metadata; FunctionInfo is not slotted, so this is safe.
+            info.localName = local_name
+            info.parentGlobalName = parentGlobal
+
+            functions[local_name] = info
+
+            #If the current func contains another function, register that child too
+            for child in node.body:
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    register_func(child, qualParts + [child.name], global_name)
+                elif isinstance(child, ast.ClassDef): #if the current func contains a class inside it
+                    register_class(child, qualParts + [child.name], global_name)
+
+        def register_class(node: ast.ClassDef, qualParts: list[str], parentGlobal: str | None) -> None:
+            classGlobal = f"{moduleName}.{'.'.join(qualParts)}"
+
+            for child in node.body:
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    register_func(child, qualParts + [child.name], classGlobal)
+                elif isinstance(child, ast.ClassDef):
+                    register_class(child, qualParts + [child.name], classGlobal)
 
         for node in tree.body:
-
-            #Top level funcs
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                localName = node.name
-                functions[localName] = FunctionInfo(
-                    name=node.name,
-                    globalName=f"{moduleName}.{localName}",
-                    moduleName=moduleName,
-                    node=node,
-                    lineno=node.lineno,
-                    endLineno=node.end_lineno,
-                    params=self.paramExtract(node),
-                    decorators=self.decoratorExtract(node),
-                    isAsync=isinstance(node, ast.AsyncFunctionDef)
-                )
-
-            #Class methods
+                register_func(node, [node.name], None)
             elif isinstance(node, ast.ClassDef):
-                className = node.name
-
-                for child in node.body:
-                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        localName = f"{className}.{child.name}"
-
-                        functions[localName] = FunctionInfo(
-                            name=child.name,
-                            globalName=f"{moduleName}.{localName}",
-                            moduleName=moduleName,
-                            node=child,
-                            lineno=child.lineno,
-                            endLineno=child.end_lineno,
-                            params=self.paramExtract(child),
-                            decorators=self.decoratorExtract(child),
-                            isAsync=isinstance(child, ast.AsyncFunctionDef)
-                        )
+                register_class(node, [node.name], None)
 
         return functions
-    
+            
     
     def build(self, rootPathStr: str) -> CodebaseIndex:
         rootPath = Path(rootPathStr).resolve()
