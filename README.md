@@ -12,10 +12,6 @@ interprocedural taint analysis. It parses Python code, builds function-level
 summaries, resolves calls across a code graph, and reports source-to-sink
 vulnerability flows with CWE labels.
 
-It is designed to answer a harder question than simple pattern matching:
-
-> Did attacker-controlled data move across functions, returns, aliases, and
-> callsites before reaching a dangerous sink?
 
 ![vulnAI analysis pipeline](https://raw.githubusercontent.com/shayaan09/vulnAI/main/docs/media/vulnai-pipeline.gif)
 
@@ -107,18 +103,6 @@ Scan a Python project:
 
 ```powershell
 vulnai scan ./path/to/python-project
-```
-
-Run OWASP Benchmark Python scoring:
-
-```powershell
-vulnai benchmark ./benchmarks/external/OWASPBenchmarkPython ./benchmarks/external/OWASPBenchmarkPython/expectedresults-0.1.csv
-```
-
-Run the local recall corpus:
-
-```powershell
-python ./tests/cwe_recall_check.py --strict
 ```
 
 ## Supported Vulnerability Classes
@@ -231,7 +215,7 @@ python -m twine check dist/*
 ## Project Status
 
 vulnAI is a research/portfolio SAST engine. It is useful for exploring static
-analysis architecture and catching many common Python vulnerability patterns,
+analysis architecture and catching many common Python vulnerability patterns (mainly the OWASP Top 10),
 but it is not a replacement for a professional security review.
 
 Known limitations:
